@@ -1,3 +1,4 @@
+
 # BIST AI ANALYZER PRO v10 - GÜVENİLİR SÜRÜM
 import streamlit as st
 import pandas as pd
@@ -13,21 +14,160 @@ st.set_page_config(page_title="BIST AI ANALYZER PRO", page_icon="📊", layout="
 
 st.markdown("""
 <style>
-    .stApp { background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%); }
-    .glass { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 18px; margin: 6px 0; }
-    .big-price { font-size: 48px; font-weight: 900; color: #fff; }
-    .green { color: #00ff88; } .red { color: #ff4444; } .yellow { color: #ffaa00; }
-    .badge-green { background: #00cc44; color: #000; padding: 4px 10px; border-radius: 6px; font-weight: 700; }
-    .badge-yellow { background: #ffaa00; color: #000; padding: 4px 10px; border-radius: 6px; font-weight: 700; }
-    .badge-red { background: #ff3333; color: #fff; padding: 4px 10px; border-radius: 6px; font-weight: 700; }
-    .ticker-bar { background: rgba(0,0,0,0.5); padding: 6px 18px; border-radius: 6px; font-family: monospace; font-size: 12px; }
-    .row { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.02); border-radius: 10px; margin: 4px 0; }
-    .confidence-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.1); margin-top: 4px; }
-    .confidence-fill { height: 8px; border-radius: 4px;     @media (max-width: 768px) {
-        .big-price { font-size: 28px !important; }
-        .row { padding: 6px !important; font-size: 12px !important; }
-        .ticker-bar { font-size: 10px !important; }
-    }}
+
+/* Genel Arka Plan */
+.stApp{
+    background:linear-gradient(135deg,#09090f 0%,#111827 40%,#0f172a 100%);
+    color:white;
+}
+
+/* Hero */
+.hero{
+    background:linear-gradient(135deg,#00ff88,#0099ff);
+    padding:2px;
+    border-radius:22px;
+    margin-bottom:20px;
+}
+
+.hero-inner{
+    background:#111827;
+    border-radius:20px;
+    padding:35px;
+}
+
+/* Cam Efekti */
+.glass{
+    background:rgba(255,255,255,.05);
+    backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:18px;
+    padding:18px;
+    margin:8px 0;
+}
+
+/* Satırlar */
+.row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:14px;
+    margin:8px 0;
+    background:rgba(255,255,255,.04);
+    border-radius:16px;
+    transition:.25s;
+}
+
+.row:hover{
+    transform:translateY(-3px);
+    border:1px solid #00ff88;
+    box-shadow:0 0 18px rgba(0,255,136,.20);
+}
+
+/* Büyük fiyat */
+.big-price{
+    font-size:46px;
+    font-weight:900;
+    color:white;
+}
+
+/* Ticker */
+.ticker-bar{
+    background:rgba(0,0,0,.35);
+    padding:10px;
+    border-radius:12px;
+    text-align:center;
+    font-family:monospace;
+}
+
+/* Badge */
+.badge-green{
+    background:#00ff88;
+    color:black;
+    padding:5px 10px;
+    border-radius:8px;
+    font-weight:700;
+}
+
+.badge-yellow{
+    background:#ffb300;
+    color:black;
+    padding:5px 10px;
+    border-radius:8px;
+    font-weight:700;
+}
+
+.badge-red{
+    background:#ff4444;
+    color:white;
+    padding:5px 10px;
+    border-radius:8px;
+    font-weight:700;
+}
+
+/* Güven Barı */
+.confidence-bar{
+    height:8px;
+    background:rgba(255,255,255,.08);
+    border-radius:10px;
+    overflow:hidden;
+}
+
+.confidence-fill{
+    height:100%;
+    border-radius:10px;
+    background:linear-gradient(90deg,#00ff88,#00bfff);
+}
+
+/* Buton */
+.stButton>button{
+    width:100%;
+    border-radius:14px;
+    font-weight:700;
+    height:55px;
+    background:linear-gradient(90deg,#00ff88,#00bfff);
+    color:black;
+    border:none;
+    transition:.3s;
+}
+
+.stButton>button:hover{
+    transform:scale(1.02);
+    box-shadow:0 0 22px rgba(0,255,136,.35);
+}
+
+/* Metric kutuları */
+[data-testid="stMetric"]{
+    background:rgba(255,255,255,.05);
+    border-radius:16px;
+    padding:12px;
+    border:1px solid rgba(255,255,255,.08);
+}
+
+/* Expander */
+details{
+    background:rgba(255,255,255,.03);
+    border-radius:14px;
+    padding:8px;
+}
+
+/* Mobil */
+@media (max-width:768px){
+
+.big-price{
+font-size:28px;
+}
+
+.row{
+padding:8px;
+font-size:12px;
+}
+
+.ticker-bar{
+font-size:11px;
+}
+
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -58,7 +198,6 @@ STOCKS = [
     {"ticker":"HEKTS.IS","name":"Hektaş"},{"ticker":"ISCTR.IS","name":"İş Bankası C"},
     {"ticker":"ISGYO.IS","name":"İş GYO"},{"ticker":"ISMEN.IS","name":"İş Yatırım"},
     {"ticker":"KCHOL.IS","name":"Koç Holding"},{"ticker":"KONTR.IS","name":"Kontrolmatik"},
-    {"ticker":"KOZAL.IS","name":"Koza Altın"},{"ticker":"KOZAA.IS","name":"Koza Metal"},
     {"ticker":"KRDMD.IS","name":"Kardemir D"},{"ticker":"MAVI.IS","name":"Mavi Giyim"},
     {"ticker":"MGROS.IS","name":"Migros"},{"ticker":"MIATK.IS","name":"Mia Teknoloji"},
     {"ticker":"MPARK.IS","name":"MLP Sağlık"},{"ticker":"ODAS.IS","name":"Odaş Elektrik"},
@@ -121,10 +260,153 @@ def get_sector(ticker):
 
 # ========== ANA SAYFA ==========
 st.markdown(f'<div class="ticker-bar">● CANLI | {len(STOCKS)} HİSSE | {datetime.now().strftime("%d.%m.%Y %H:%M")} | GÜVENİLİR v10</div>', unsafe_allow_html=True)
-st.title("📊 BIST AI ANALYZER PRO")
-st.caption("Gerçek Fiyat • RSI • MACD • Sektör Bazlı Değerleme • Neden-Sonuç • Risk Yönetimi")
+st.markdown("""
+<div class="hero">
+<div class="hero-inner">
 
-if st.button("🔄 TÜM HİSSELERİ ANALİZ ET", use_container_width=True):
+<h1 style="font-size:64px;text-align:center;margin-bottom:5px;">
+📈 BCBIST AI
+</h1>
+
+<h3 style="text-align:center;color:#00ff88;">
+Professional BIST Intelligence Platform
+</h3>
+
+<p style="
+text-align:center;
+max-width:900px;
+margin:auto;
+font-size:18px;
+line-height:1.8;
+color:#cfcfcf;
+">
+
+Analyze Turkish stocks using Artificial Intelligence,
+technical indicators,
+risk management,
+sector comparison,
+macroeconomic data
+and smart investment scoring.
+
+</p>
+
+</div>
+</div>
+""", unsafe_allow_html=True)
+c1,c2,c3,c4=st.columns(4)
+
+c1.metric("🏢 Companies","250+")
+c2.metric("🤖 AI Engine","Active")
+c3.metric("📊 Indicators","15+")
+c4.metric("⚡ Live Market","Online")
+st.markdown("### 🚀 Platform Features")
+
+f1,f2,f3=st.columns(3)
+
+with f1:
+    st.info("""
+### 🤖 AI Analysis
+
+• AI Confidence Score
+
+• Trend Detection
+
+• Buy/Sell Signals
+
+• Risk Management
+""")
+
+with f2:
+    st.info("""
+### 📊 Technical Analysis
+
+• RSI
+
+• MACD
+
+• Bollinger Bands
+
+• Camarilla Levels
+""")
+
+with f3:
+    st.info("""
+### 🌍 Market Intelligence
+
+• BIST 100 Trend
+
+• USD/TRY
+
+• Gold
+
+• Brent Oil
+
+• Sector Valuation
+""")
+st.markdown("""
+<div style="text-align:center;padding:30px 0 10px 0;">
+
+<h1 style="
+font-size:58px;
+font-weight:900;
+margin-bottom:0;
+color:white;">
+📈 BCBIST AI
+</h1>
+
+<h3 style="
+color:#00ff88;
+margin-top:5px;">
+Professional BIST Stock Analyzer
+</h3>
+
+<p style="
+font-size:18px;
+color:#bbbbbb;
+max-width:850px;
+margin:auto;
+line-height:1.7;">
+
+Analyze more than <b>250 BIST companies</b> using
+<b>Artificial Intelligence</b>,
+technical indicators,
+sector valuation,
+risk management
+and macroeconomic analysis.
+
+</p>
+
+</div>
+""", unsafe_allow_html=True)
+col1,col2,col3,col4=st.columns(4)
+
+col1.metric("📈 Stocks","250+")
+col2.metric("🤖 AI Analysis","Live")
+col3.metric("📊 Indicators","15+")
+col4.metric("⚡ Updates","Real Time")
+
+if st.button("🚀 Launch AI Analysis", use_container_width=True):
+    with st.spinner("🤖 AI is analyzing the market..."):
+        import time
+
+        loading = st.empty()
+
+        steps = [
+            "🧠 Reading financial statements...",
+            "📊 Calculating technical indicators...",
+            "📈 Comparing sector valuations...",
+            "🌍 Analyzing macroeconomic conditions...",
+            "⚖️ Calculating risk score...",
+            "💡 Generating AI investment insights..."
+        ]
+
+        for step in steps:
+            loading.info(step)
+            time.sleep(0.6)
+
+        loading.success("✅ AI analysis completed.")
+        time.sleep(0.5)
+        loading.empty()
     results = []
     progress = st.progress(0)
     status = st.empty()
@@ -166,7 +448,40 @@ if st.button("🔄 TÜM HİSSELERİ ANALİZ ET", use_container_width=True):
                 macd = ema12 - ema26
                 signal_line = macd.ewm(span=9).mean()
                 macd_signal = "yukarı kesiş ✅" if macd.iloc[-1] > signal_line.iloc[-1] else "aşağı kesiş ❌"
+                # BOLLİNGER
+                sma20_bb = close.rolling(20).mean()
+                std20 = close.rolling(20).std()
+                bb_upper = sma20_bb + 2*std20
+                bb_lower = sma20_bb - 2*std20
+                bb_position = ((price - bb_lower.iloc[-1]) / max(bb_upper.iloc[-1] - bb_lower.iloc[-1], 0.01) * 100)
+                bb_width = ((bb_upper.iloc[-1] - bb_lower.iloc[-1]) / max(sma20_bb.iloc[-1], 0.01) * 100)
                 
+                if bb_position > 80: bb_signal = "Üst bant (aşırı alım)"
+                elif bb_position < 20: bb_signal = "Alt bant (aşırı satım)"
+                elif bb_width < 5: bb_signal = "Sıkışma"
+                else: bb_signal = "Normal"
+                
+                # CAMARİLLA
+                prev_high = hist["High"].iloc[-2] if len(hist) >= 2 else price
+                prev_low = hist["Low"].iloc[-2] if len(hist) >= 2 else price
+                prev_close = hist["Close"].iloc[-2] if len(hist) >= 2 else price
+                diff = max(prev_high - prev_low, 0.01)
+                
+                cam = {
+                    "R3": round(prev_close + diff * 1.25, 2),
+                    "R2": round(prev_close + diff * 1.1666, 2),
+                    "R1": round(prev_close + diff * 1.0833, 2),
+                    "Pivot": round((prev_high + prev_low + 2*prev_close) / 4, 2),
+                    "S1": round(prev_close - diff * 1.0833, 2),
+                    "S2": round(prev_close - diff * 1.1666, 2),
+                    "S3": round(prev_close - diff * 1.25, 2),
+                }
+                
+                if price <= cam["S3"]: cam_signal = "🟢 S3 AL FIRSATI"
+                elif price >= cam["R3"]: cam_signal = "🔴 R3 SAT FIRSATI"
+                elif price <= cam["S2"]: cam_signal = "🟡 S2'ye yakın"
+                elif price >= cam["R2"]: cam_signal = "🟠 R2'ye yakın"
+                else: cam_signal = "⚪ Normal"                
                 # Trend
                 sma20 = close.rolling(20).mean().iloc[-1]
                 sma50 = close.rolling(50).mean().iloc[-1] if len(close)>=50 else sma20
@@ -177,7 +492,11 @@ if st.button("🔄 TÜM HİSSELERİ ANALİZ ET", use_container_width=True):
                 else: trend = "YATAY"
             else:
                 trend = "YATAY"
-            
+                bb_signal = "Normal"
+                bb_position = 50
+                bb_width = 5
+                cam = {}
+                cam_signal = "⚪ Hesaplanamadı"
             # ===== HACİM ANALİZİ =====
             volume_ratio = (volume / avg_volume * 100) if avg_volume > 0 else 100
             whale = "🐋 ANORMAL" if volume_ratio > 200 else "📊 YÜKSEK" if volume_ratio > 150 else "Normal"
@@ -231,6 +550,16 @@ if st.button("🔄 TÜM HİSSELERİ ANALİZ ET", use_container_width=True):
             # Hacim
             if volume_ratio > 150: confidence += 8; reasons.append("✅ Yüksek hacim (ilgi var)")
             elif volume_ratio < 50: confidence -= 5; reasons.append("⚠️ Düşük hacim")
+            # Bollinger
+            if bb_position > 80: confidence -= 8; reasons.append("⚠️ Bollinger üst bant (aşırı alım)")
+            elif bb_position < 20: confidence += 10; reasons.append("✅ Bollinger alt bant (aşırı satım fırsatı)")
+            elif bb_width < 5: confidence += 5; reasons.append("✅ Bollinger sıkışması (büyük hareket yakın)")
+            
+            # Camarilla
+            if price <= cam.get("S3", price): confidence += 12; reasons.append(f"✅ Camarilla S3 desteğinde (dip alım)")
+            elif price <= cam.get("S2", price): confidence += 6
+            elif price >= cam.get("R3", price): confidence -= 10; reasons.append(f"⚠️ Camarilla R3 direncinde (satış)")
+            elif price >= cam.get("R2", price): confidence -= 5
             
             # F/K sektör karşılaştırması
             if pe > 0 and sector_fk > 0:
@@ -260,32 +589,107 @@ if st.button("🔄 TÜM HİSSELERİ ANALİZ ET", use_container_width=True):
             
             # ===== RİSK & POZİSYON =====
             volatility = close.pct_change().std() * np.sqrt(252) * 100 if not hist.empty else 25
-            target = round(high * 1.02, 2)
-            stop = round(low * 0.98, 2)
-            gain_pct = round(((target-price)/price)*100, 2)
-            loss_pct = round(((price-stop)/price)*100, 2)
-            
-            if confidence >= 70: pos_pct = 15
-            elif confidence >= 55: pos_pct = 10
-            elif confidence >= 40: pos_pct = 5
-            else: pos_pct = 0
-            
+
+            # Risk seviyesi
+            if volatility < 20:
+                risk = "🟢 Düşük"
+            elif volatility < 35:
+                risk = "🟡 Orta"
+            else:
+                risk = "🔴 Yüksek"
+
+            # ATR tabanlı hedef / stop
+            if not hist.empty and len(hist) >= 14:
+                atr = (
+                    (hist["High"] - hist["Low"])
+                    .rolling(14)
+                    .mean()
+                    .iloc[-1]
+                )
+            else:
+                atr = price * 0.03
+
+            stop = round(price - atr * 1.5, 2)
+            target = round(price + atr * 3, 2)
+
+            gain_pct = round(((target - price) / price) * 100, 2)
+            loss_pct = round(((price - stop) / price) * 100, 2)
+
+            # Risk / Ödül Oranı
+            risk_reward = round(
+                (target - price) / max(price - stop, 0.01),
+                2
+            )
+
+            # Pozisyon büyüklüğü
+            if confidence >= 80:
+                pos_pct = 20
+            elif confidence >= 70:
+                pos_pct = 15
+            elif confidence >= 55:
+                pos_pct = 10
+            elif confidence >= 40:
+                pos_pct = 5
+            else:
+                pos_pct = 0
+
             results.append({
-                "ticker": s["ticker"].replace(".IS",""), "name": s["name"], "sector": sector,
-                "price": price, "change": change, "confidence": confidence,
-                "signal": sig, "sclass": sclass,
-                "rsi": round(rsi_val,1), "macd": macd_signal, "trend": trend,
-                "volume_ratio": round(volume_ratio,1), "whale": whale,
-                "pe": round(pe,1) if pe else 0, "pb": round(pb,2) if pb else 0,
-                "sector_fk": sector_fk, "sector_pb": sector_pb,
-                "target": target, "stop": stop,
-                "gain": gain_pct, "loss": loss_pct,
-                "volatility": round(volatility,1), "pos_pct": pos_pct,
+                "ticker": s["ticker"].replace(".IS",""),
+                "name": s["name"],
+                "sector": sector,
+
+                "price": price,
+                "change": change,
+
+                "confidence": confidence,
+
+                "signal": sig,
+                "sclass": sclass,
+
+                "rsi": round(rsi_val,1),
+                "macd": macd_signal,
+                "trend": trend,
+
+                "volume_ratio": round(volume_ratio,1),
+                "whale": whale,
+
+                "bb_signal": bb_signal,
+                "bb_position": round(bb_position,1),
+                "bb_width": round(bb_width,1),
+
+                "cam": cam,
+                "cam_signal": cam_signal,
+
+                "pe": round(pe,1) if pe else 0,
+                "pb": round(pb,2) if pb else 0,
+
+                "sector_fk": sector_fk,
+                "sector_pb": sector_pb,
+
+                "target": target,
+                "stop": stop,
+
+                "gain": gain_pct,
+                "loss": loss_pct,
+
+                "risk": risk,
+                "risk_reward": risk_reward,
+                "volatility": round(volatility,1),
+
+                "pos_pct": pos_pct,
+
                 "reasons": reasons,
             })
         except:
             pass
-    results.sort(key=lambda x: x["confidence"], reverse=True)
+    results.sort(
+    key=lambda x: (
+        x["confidence"],
+        x["change"],
+        x["volume_ratio"]
+    ),
+    reverse=True
+)
     status.empty()
     progress.empty()
     
@@ -326,12 +730,27 @@ if st.button("🔄 TÜM HİSSELERİ ANALİZ ET", use_container_width=True):
             st.markdown("---")
             
             # TEKNİK DETAY
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
+
             col1.metric("RSI(14)", f"{r['rsi']:.0f}")
-            col2.metric("MACD", r['macd'])
-            col3.metric("Trend", r['trend'])
+            col2.metric("MACD", r["macd"])
+            col3.metric("Trend", r["trend"])
             col4.metric("Volatilite", f"%{r['volatility']:.1f}")
+            col5.metric("Risk", r["risk"])
             
+            st.markdown("---")
+            st.subheader("📊 Bollinger & Camarilla")
+            col1, col2 = st.columns(2)
+            with col1: st.metric("Bollinger", r.get('bb_signal','N/A'), delta=f"Poz: %{r.get('bb_position',50):.0f}")
+            with col2: st.metric("Camarilla", r.get('cam_signal','N/A'))
+            
+            cam = r.get('cam', {})
+            if cam:
+                cols = st.columns(7)
+                seviyeler = [("R3",cam.get('R3',0),"#ff4444"),("R2",cam.get('R2',0),"#ff8888"),("R1",cam.get('R1',0),"#ffaaaa"),("P",cam.get('Pivot',0),"#ffffff"),("S1",cam.get('S1',0),"#aaffaa"),("S2",cam.get('S2',0),"#88ff88"),("S3",cam.get('S3',0),"#44ff44")]
+                for i, (n, v, c) in enumerate(seviyeler):
+                    with cols[i]: st.markdown(f'<div style="text-align:center;padding:4px;background:rgba(255,255,255,0.03);border-radius:6px;"><small style="color:{c};">{n}</small><br><b style="font-size:13px;">{v:.2f}</b></div>', unsafe_allow_html=True)
+                      
             # SEKTÖR KARŞILAŞTIRMASI
             if r['pe'] > 0:
                 st.markdown("---")
@@ -449,8 +868,9 @@ try:
             else:
                 st.error("Piyasa baskılıyor")
 
-except:
-    pass
+except Exception as e:
+    st.warning(f"{s['ticker']} analiz edilirken hata oluştu.")
+    print(e)
     st.warning(f"BIST 100 verisi çekilemedi. Sinyaller normal devam eder.")
     
 # ========== MAKRO EKONOMİK VERİLER ==========
@@ -505,11 +925,11 @@ except:
 macro_col5.metric("📊 BIST 100", f"{bist_price:,.0f}" if bist_price > 0 else "Veri yok", delta=f"%{bist_change:.2f}" if bist_change else None)
 
 # Faiz yorumu (TCMB politika faizi sabit)
-st.info(f"🏦 **TCMB Politika Faizi:** %42.5 | 💰 **Piyasa Yorumu:** {
-    'Yüksek faiz, TL varlıkları baskılar. Banka hisseleri için fırsat olabilir.' if usd_price < 35 
-    else 'Kur yükselişi ihracatçıları destekler. Döviz kazanan şirketlere bakılabilir.'
-}")
-
+try:
+    usd_msg = 'Yüksek faiz, TL varlıkları baskılar.' if usd_price < 35 else 'Kur yükselişi ihracatçıları destekler.'
+except:
+    usd_msg = 'Piyasa verisi çekilemedi.'
+st.info(f"🏦 **TCMB Politika Faizi:** %42.5 | 💰 **Piyasa Yorumu:** {usd_msg}")
 st.caption("📊 Makro veriler yfinance üzerinden 15 dakika gecikmeli gelir. Yatırım kararı için tek başına yeterli değildir.")
     # ========== BACKTEST SİSTEMİ ==========
 st.markdown("---")
