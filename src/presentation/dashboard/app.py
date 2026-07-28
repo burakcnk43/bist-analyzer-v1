@@ -1,1042 +1,528 @@
+"""BCBIST AI V2 — doğrulanabilir veri odaklı Streamlit arayüzü.
 
-# BIST AI ANALYZER PRO v10 - GÜVENİLİR SÜRÜM
-import streamlit as st
+Çalıştırma: streamlit run src/presentation/dashboard/v2_app.py
+"""
+
+from __future__ import annotations
+
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
+import streamlit as st
 import yfinance as yf
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import requests, random, json
-trend_effect = 1.0
 
-st.set_page_config(page_title="BIST AI ANALYZER PRO", page_icon="📊", layout="wide")
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.domain.services.market_analysis import calculate_technicals, score_opportunity
+from src.data.bist_universe import BIST_TICKERS
+
+
+st.set_page_config(page_title="BCBIST AI", page_icon="📈", layout="wide", initial_sidebar_state="expanded")
+
+KNOWN_STOCKS = {
+    "ASELS": {"name": "Aselsan Elektronik Sanayi ve Ticaret A.Ş.", "sector": "Savunma"},
+    "THYAO": {"name": "Türk Hava Yolları A.O.", "sector": "Ulaştırma"},
+    "ISCTR": {"name": "Türkiye İş Bankası A.Ş. (C)", "sector": "Bankacılık"},
+    "KCHOL": {"name": "Koç Holding A.Ş.", "sector": "Holding"},
+    "AKBNK": {"name": "Akbank T.A.Ş.", "sector": "Bankacılık"},
+    "BIMAS": {"name": "BİM Birleşik Mağazalar A.Ş.", "sector": "Perakende"},
+    "EREGL": {"name": "Ereğli Demir ve Çelik Fabrikaları T.A.Ş.", "sector": "Metal"},
+    "FROTO": {"name": "Ford Otomotiv Sanayi A.Ş.", "sector": "Otomotiv"},
+    "TCELL": {"name": "Turkcell İletişim Hizmetleri A.Ş.", "sector": "İletişim"},
+    "TUPRS": {"name": "Tüpraş Türkiye Petrol Rafinerileri A.Ş.", "sector": "Petrol"},
+}
+
+# Her sembol aramada kullanılabilir. Şirket adı/sekörü veri sağlayıcısından
+# alınır; burada yalnızca V2'nin bilinen ilk sembolleri için yerel yedek vardır.
+STOCKS = {symbol: {"name": symbol, "sector": "Diğer"} for symbol in BIST_TICKERS}
+STOCKS.update(KNOWN_STOCKS)
+
 
 st.markdown("""
 <style>
-
-/* Genel Arka Plan */
-.stApp{
-    background:linear-gradient(135deg,#09090f 0%,#111827 40%,#0f172a 100%);
-    color:white;
-}
-
-/* Hero */
-.hero{
-    background:linear-gradient(135deg,#00ff88,#0099ff);
-    padding:2px;
-    border-radius:22px;
-    margin-bottom:20px;
-}
-
-.hero-inner{
-    background:#111827;
-    border-radius:20px;
-    padding:35px;
-}
-
-/* Cam Efekti */
-.glass{
-    background:rgba(255,255,255,.05);
-    backdrop-filter:blur(12px);
-    border:1px solid rgba(255,255,255,.08);
-    border-radius:18px;
-    padding:18px;
-    margin:8px 0;
-}
-
-/* Satırlar */
-.row{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    padding:14px;
-    margin:8px 0;
-    background:rgba(255,255,255,.04);
-    border-radius:16px;
-    transition:.25s;
-}
-
-.row:hover{
-    transform:translateY(-3px);
-    border:1px solid #00ff88;
-    box-shadow:0 0 18px rgba(0,255,136,.20);
-}
-
-/* Büyük fiyat */
-.big-price{
-    font-size:46px;
-    font-weight:900;
-    color:white;
-}
-
-/* Ticker */
-.ticker-bar{
-    background:rgba(0,0,0,.35);
-    padding:10px;
-    border-radius:12px;
-    text-align:center;
-    font-family:monospace;
-}
-
-/* Badge */
-.badge-green{
-    background:#00ff88;
-    color:black;
-    padding:5px 10px;
-    border-radius:8px;
-    font-weight:700;
-}
-
-.badge-yellow{
-    background:#ffb300;
-    color:black;
-    padding:5px 10px;
-    border-radius:8px;
-    font-weight:700;
-}
-
-.badge-red{
-    background:#ff4444;
-    color:white;
-    padding:5px 10px;
-    border-radius:8px;
-    font-weight:700;
-}
-
-/* Güven Barı */
-.confidence-bar{
-    height:8px;
-    background:rgba(255,255,255,.08);
-    border-radius:10px;
-    overflow:hidden;
-}
-
-.confidence-fill{
-    height:100%;
-    border-radius:10px;
-    background:linear-gradient(90deg,#00ff88,#00bfff);
-}
-
-/* Buton */
-.stButton>button{
-    width:100%;
-    border-radius:14px;
-    font-weight:700;
-    height:55px;
-    background:linear-gradient(90deg,#00ff88,#00bfff);
-    color:black;
-    border:none;
-    transition:.3s;
-}
-
-.stButton>button:hover{
-    transform:scale(1.02);
-    box-shadow:0 0 22px rgba(0,255,136,.35);
-}
-
-/* Metric kutuları */
-[data-testid="stMetric"]{
-    background:rgba(255,255,255,.05);
-    border-radius:16px;
-    padding:12px;
-    border:1px solid rgba(255,255,255,.08);
-}
-
-/* Expander */
-details{
-    background:rgba(255,255,255,.03);
-    border-radius:14px;
-    padding:8px;
-}
-
-/* Mobil */
-@media (max-width:768px){
-
-.big-price{
-font-size:28px;
-}
-
-.row{
-padding:8px;
-font-size:12px;
-}
-
-.ticker-bar{
-font-size:11px;
-}
-
-}
-
+  .stApp { background: radial-gradient(circle at 5% 0%, #163b62 0%, transparent 32%), radial-gradient(circle at 95% 10%, #38205e 0%, transparent 28%), #07111f; color: #e5edf7; }
+  .brand { font-size: 2.5rem; font-weight: 800; letter-spacing: -.07rem; margin-bottom: .2rem; color: #f2f8ff; }
+  .muted { color: #9fb0c4; }
+  .card { background: linear-gradient(145deg, rgba(19,43,70,.95), rgba(12,24,42,.95)); border: 1px solid #2d5c88; border-radius: 18px; padding: 1.1rem 1.25rem; min-height: 110px; box-shadow: 0 12px 30px rgba(0,0,0,.18); }
+  .eyebrow { font-size: .75rem; color: #79d8ff; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+  .disclaimer { background: #172334; border-left: 3px solid #eab308; padding: .85rem 1rem; border-radius: 8px; color: #d9e4f0; }
+  .source { color: #9fb0c4; font-size: .85rem; }
+  .stMetric { background: rgba(13, 31, 52, .9); border: 1px solid #28547f; border-radius: 14px; padding: .6rem; }
+  .stButton > button { border-radius: 12px; border: 1px solid #3c82b7; background: linear-gradient(110deg, #0f6fae, #5c3bb1); color: white; font-weight: 700; min-height: 2.65rem; }
+  .stButton > button:hover { border-color: #74d4ff; box-shadow: 0 0 18px rgba(92, 180, 255, .35); }
+  .candidate { background: linear-gradient(120deg, #0d5b75, #27316d); border: 1px solid #4bd2ea; border-radius: 16px; padding: 1rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# ========== 250 HİSSE ==========
-STOCKS = [
-    {"ticker":"AEFES.IS","name":"Anadolu Efes"},{"ticker":"AGESA.IS","name":"Agesa Hayat Emeklilik"},
-    {"ticker":"AGHOL.IS","name":"Anadolu Grubu Holding"},{"ticker":"AHGAZ.IS","name":"Ahlatcı Doğal Gaz"},
-    {"ticker":"AKBNK.IS","name":"Akbank"},{"ticker":"AKCNS.IS","name":"Akçansa"},
-    {"ticker":"AKFGY.IS","name":"Akfen GYO"},{"ticker":"AKFYE.IS","name":"Akfen Yenilenebilir Enerji"},
-    {"ticker":"AKSA.IS","name":"Aksa Akrilik"},{"ticker":"AKSEN.IS","name":"Aksa Enerji"},
-    {"ticker":"ALARK.IS","name":"Alarko Holding"},{"ticker":"ALBRK.IS","name":"Albaraka Türk"},
-    {"ticker":"ALFAS.IS","name":"Alfa Solar Enerji"},{"ticker":"ALTNY.IS","name":"Altınay Savunma"},
-    {"ticker":"ANSGR.IS","name":"Anadolu Sigorta"},{"ticker":"ARCLK.IS","name":"Arçelik"},
-    {"ticker":"ARDYZ.IS","name":"Ard Bilişim"},{"ticker":"ASELS.IS","name":"Aselsan"},
-    {"ticker":"ASTOR.IS","name":"Astor Enerji"},{"ticker":"AYDEM.IS","name":"Aydem Enerji"},
-    {"ticker":"AYGAZ.IS","name":"Aygaz"},{"ticker":"BERA.IS","name":"Bera Holding"},
-    {"ticker":"BIMAS.IS","name":"BİM Mağazalar"},{"ticker":"BIOEN.IS","name":"Biotrend Enerji"},
-    {"ticker":"BRSAN.IS","name":"Borusan"},{"ticker":"BRYAT.IS","name":"Borusan Yatırım"},
-    {"ticker":"CANTE.IS","name":"Çan2 Termik"},{"ticker":"CCOLA.IS","name":"Coca-Cola İçecek"},
-    {"ticker":"CIMSA.IS","name":"Çimsa"},{"ticker":"CLEBI.IS","name":"Çelebi"},
-    {"ticker":"CWENE.IS","name":"CW Enerji"},{"ticker":"DOAS.IS","name":"Doğuş Otomotiv"},
-    {"ticker":"DOHOL.IS","name":"Doğan Holding"},{"ticker":"EGEEN.IS","name":"Ege Endüstri"},
-    {"ticker":"EKGYO.IS","name":"Emlak Konut GYO"},{"ticker":"ENERY.IS","name":"Enerya Enerji"},
-    {"ticker":"ENKAI.IS","name":"Enka İnşaat"},{"ticker":"EREGL.IS","name":"Ereğli Demir Çelik"},
-    {"ticker":"EUPWR.IS","name":"Europower Enerji"},{"ticker":"FROTO.IS","name":"Ford Otosan"},
-    {"ticker":"GARAN.IS","name":"Garanti BBVA"},{"ticker":"GUBRF.IS","name":"Gübre Fabrikaları"},
-    {"ticker":"GWIND.IS","name":"Galata Wind"},{"ticker":"HALKB.IS","name":"Halkbank"},
-    {"ticker":"HEKTS.IS","name":"Hektaş"},{"ticker":"ISCTR.IS","name":"İş Bankası C"},
-    {"ticker":"ISGYO.IS","name":"İş GYO"},{"ticker":"ISMEN.IS","name":"İş Yatırım"},
-    {"ticker":"KCHOL.IS","name":"Koç Holding"},{"ticker":"KONTR.IS","name":"Kontrolmatik"},
-    {"ticker":"KRDMD.IS","name":"Kardemir D"},{"ticker":"MAVI.IS","name":"Mavi Giyim"},
-    {"ticker":"MGROS.IS","name":"Migros"},{"ticker":"MIATK.IS","name":"Mia Teknoloji"},
-    {"ticker":"MPARK.IS","name":"MLP Sağlık"},{"ticker":"ODAS.IS","name":"Odaş Elektrik"},
-    {"ticker":"OTKAR.IS","name":"Otokar"},{"ticker":"OYAKC.IS","name":"Oyak Çimento"},
-    {"ticker":"PETKM.IS","name":"Petkim"},{"ticker":"PGSUS.IS","name":"Pegasus"},
-    {"ticker":"REEDR.IS","name":"Reeder Teknoloji"},{"ticker":"SAHOL.IS","name":"Sabancı Holding"},
-    {"ticker":"SASA.IS","name":"Sasa Polyester"},{"ticker":"SDTTR.IS","name":"SDT Uzay Savunma"},
-    {"ticker":"SISE.IS","name":"Şişecam"},{"ticker":"SKBNK.IS","name":"Şekerbank"},
-    {"ticker":"SMRTG.IS","name":"Smart Güneş"},{"ticker":"SOKM.IS","name":"Şok Marketler"},
-    {"ticker":"TAVHL.IS","name":"TAV Havalimanları"},{"ticker":"TCELL.IS","name":"Turkcell"},
-    {"ticker":"THYAO.IS","name":"Türk Hava Yolları"},{"ticker":"TKFEN.IS","name":"Tekfen Holding"},
-    {"ticker":"TOASO.IS","name":"Tofaş"},{"ticker":"TSKB.IS","name":"TSKB"},
-    {"ticker":"TTKOM.IS","name":"Türk Telekom"},{"ticker":"TUPRS.IS","name":"Tüpraş"},
-    {"ticker":"TURSG.IS","name":"Türkiye Sigorta"},{"ticker":"ULKER.IS","name":"Ülker"},
-    {"ticker":"VAKBN.IS","name":"Vakıfbank"},{"ticker":"VESTL.IS","name":"Vestel"},
-    {"ticker":"YKBNK.IS","name":"Yapı Kredi"},{"ticker":"ZOREN.IS","name":"Zorlu Enerji"},
-    {"ticker":"AFYON.IS","name":"Afyon Çimento"},{"ticker":"AKGRT.IS","name":"Aksigorta"},
-    {"ticker":"ALGYO.IS","name":"Alarko GYO"},{"ticker":"ALKIM.IS","name":"Alkim Kimya"},
-    {"ticker":"ARENA.IS","name":"Arena Bilgisayar"},{"ticker":"BANVT.IS","name":"Banvit"},
-    {"ticker":"BEYAZ.IS","name":"Beyaz Filo"},{"ticker":"BIZIM.IS","name":"Bizim Toptan"},
-    {"ticker":"BOSSA.IS","name":"Bossa"},{"ticker":"BRISA.IS","name":"Brisa"},
-    {"ticker":"BTCIM.IS","name":"Batıçim"},{"ticker":"BUCIM.IS","name":"Bursa Çimento"},
-    {"ticker":"CEMTS.IS","name":"Çemtaş"},{"ticker":"DARDL.IS","name":"Dardanel"},
-    {"ticker":"DESA.IS","name":"Desa Deri"},{"ticker":"DEVA.IS","name":"Deva Holding"},
-    {"ticker":"DYOBY.IS","name":"Dyo Boya"},{"ticker":"EDATA.IS","name":"E-Data Teknoloji"},
-    {"ticker":"EFOR.IS","name":"Efor Çay"},{"ticker":"EKSUN.IS","name":"Eksun Gıda"},
-    {"ticker":"FENER.IS","name":"Fenerbahçe"},{"ticker":"FMIZP.IS","name":"Federal-Mogul Piston"},
-    {"ticker":"FORMT.IS","name":"Formet Metal"},{"ticker":"GENIL.IS","name":"Gen İlaç"},
-    {"ticker":"GLYHO.IS","name":"Global Yatırım Holding"},{"ticker":"GSDHO.IS","name":"GSD Holding"},
-    {"ticker":"HTTBT.IS","name":"Hitit Bilgisayar"},{"ticker":"INDES.IS","name":"İndeks Bilgisayar"},
-    {"ticker":"INFO.IS","name":"İnfo Yatırım"},{"ticker":"INVEO.IS","name":"Inveo Yatırım"},
-    {"ticker":"IPEKE.IS","name":"İpek Enerji"},{"ticker":"ISKPL.IS","name":"Işık Plastik"},
-    {"ticker":"JANTS.IS","name":"Jantsa"},{"ticker":"KARSN.IS","name":"Karsan"},
-    {"ticker":"KARTN.IS","name":"Kartonsan"},{"ticker":"KERVT.IS","name":"Kerevitaş"},
-    {"ticker":"KLMSN.IS","name":"Klimasan"},{"ticker":"KNFRT.IS","name":"Konfrut Gıda"},
-    {"ticker":"KUYAS.IS","name":"Kuyaş Yatırım"},{"ticker":"LKMNH.IS","name":"Lokman Hekim"},
-    {"ticker":"MARTI.IS","name":"Martı Otel"},{"ticker":"MEGAP.IS","name":"Megap Polietilen"},
-    {"ticker":"MNDRS.IS","name":"Menderes Tekstil"},{"ticker":"NETAS.IS","name":"Netaş"},
-    {"ticker":"NUHCM.IS","name":"Nuh Çimento"},{"ticker":"ORGE.IS","name":"Orge Enerji"},
-    {"ticker":"OSTIM.IS","name":"Ostim Endüstri"},{"ticker":"PAPIL.IS","name":"Papilon Savunma"},
-    {"ticker":"PARSN.IS","name":"Parsan"},{"ticker":"PASEU.IS","name":"Pasifik Eurasia"},
-    {"ticker":"PSGYO.IS","name":"Pasifik GYO"},{"ticker":"QUAGR.IS","name":"Qua Granite"},
-    {"ticker":"RALYH.IS","name":"Ral Yatırım Holding"},{"ticker":"RTALB.IS","name":"RTA Laboratuvar"},
-    {"ticker":"SELEC.IS","name":"Selçuk Ecza"},{"ticker":"TABGD.IS","name":"Tab Gıda"},
-    {"ticker":"TMSN.IS","name":"Tümosan"},{"ticker":"TRGYO.IS","name":"Torunlar GYO"},
-    {"ticker":"TTRAK.IS","name":"Türk Traktör"},{"ticker":"TUKAS.IS","name":"Tukaş"},
-    {"ticker":"VESBE.IS","name":"Vestel Beyaz Eşya"},{"ticker":"YATAS.IS","name":"Yataş"},
-    {"ticker":"YEOTK.IS","name":"Yeo Teknoloji"},{"ticker":"YYAPI.IS","name":"Yeşil Yapı"},
-]
 
-# ========== SEKTÖR ORTALAMALARI (GERÇEK) ==========
-SECTOR_FK = {"Bankacılık":6,"Sigorta":8,"Holding":7,"Ulaştırma":10,"Otomotiv":9,"Perakende":14,"Gıda":13,"İletişim":11,"Enerji":12,"Petrol":8,"Kimya":12,"Metal":7,"Savunma":20,"Gayrimenkul":8,"Day.Tüketim":10,"Maden":10,"İnşaat":9,"Çimento":7,"Sağlık":15,"Teknoloji":18,"Finans":9,"Mobilya":8,"Medya":6,"Ambalaj":8,"Tekstil":7,"Turizm":15}
-SECTOR_PB = {"Bankacılık":0.8,"Sigorta":1.2,"Holding":0.7,"Ulaştırma":1.5,"Otomotiv":2.0,"Perakende":3.0,"Gıda":2.2,"İletişim":1.6,"Enerji":1.4,"Petrol":1.8,"Kimya":2.0,"Metal":0.9,"Savunma":5.0,"Gayrimenkul":0.6,"Day.Tüketim":1.8,"Maden":1.5,"İnşaat":1.2,"Çimento":0.9,"Sağlık":3.5,"Teknoloji":4.0,"Finans":1.2,"Mobilya":1.1,"Medya":0.5,"Ambalaj":1.0,"Tekstil":0.8,"Turizm":2.0}
+def tr_number(value: Any, suffix: str = "", decimals: int = 2) -> str:
+    if value is None or pd.isna(value):
+        return "Veri yok"
+    return f"{float(value):,.{decimals}f}".replace(",", "X").replace(".", ",").replace("X", ".") + suffix
 
-def get_sector(ticker):
-    for s in STOCKS:
-        if s["ticker"] == ticker + ".IS" or s["ticker"] == ticker:
-            return s.get("sector", "Diğer")
-    return "Diğer"
 
-# ========== ANA SAYFA ==========
-st.markdown(f'<div class="ticker-bar">● CANLI | {len(STOCKS)} HİSSE | {datetime.now().strftime("%d.%m.%Y %H:%M")} | GÜVENİLİR v10</div>', unsafe_allow_html=True)
-st.markdown("""
-<div class="hero">
-<div class="hero-inner">
+def compact_number(value: Any) -> str:
+    if value is None or pd.isna(value):
+        return "Veri yok"
+    value = float(value)
+    for threshold, symbol in ((1_000_000_000, " mlr"), (1_000_000, " mn"), (1_000, " bin")):
+        if abs(value) >= threshold:
+            return tr_number(value / threshold, symbol, 1)
+    return tr_number(value, "", 0)
 
-<h1 style="font-size:64px;text-align:center;margin-bottom:5px;">
-📈 BCBIST AI
-</h1>
 
-<h3 style="text-align:center;color:#00ff88;">
-Professional BIST Intelligence Platform
-</h3>
+def latest_value(frame: pd.DataFrame, labels: list[str]) -> float | None:
+    if frame is None or frame.empty:
+        return None
+    for label in labels:
+        if label in frame.index:
+            values = frame.loc[label].dropna()
+            if not values.empty:
+                return float(values.iloc[0])
+    return None
 
-<p style="
-text-align:center;
-max-width:900px;
-margin:auto;
-font-size:18px;
-line-height:1.8;
-color:#cfcfcf;
-">
 
-Analyze Turkish stocks using Artificial Intelligence,
-technical indicators,
-risk management,
-sector comparison,
-macroeconomic data
-and smart investment scoring.
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_stock(symbol: str) -> dict[str, Any]:
+    ticker = yf.Ticker(f"{symbol}.IS")
+    history = ticker.history(period="1y", auto_adjust=True)
+    if history.empty:
+        raise ValueError(f"{symbol} için fiyat verisi alınamadı.")
+    try:
+        info = ticker.info
+    except Exception:
+        info = {}
+    try:
+        income = ticker.financials
+        balance = ticker.balance_sheet
+        cashflow = ticker.cashflow
+    except Exception:
+        income, balance, cashflow = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    try:
+        news = ticker.news or []
+    except Exception:
+        news = []
+    return {"history": history, "info": info, "income": income, "balance": balance, "cashflow": cashflow, "news": news}
 
-</p>
 
-</div>
-</div>
-""", unsafe_allow_html=True)
-c1,c2,c3,c4=st.columns(4)
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_price_histories(symbols: tuple[str, ...]) -> dict[str, pd.DataFrame]:
+    """Fetch many symbols in one request for the fast technical screener.
 
-c1.metric("🏢 Companies","250+")
-c2.metric("🤖 AI Engine","Active")
-c3.metric("📊 Indicators","15+")
-c4.metric("⚡ Live Market","Online")
-st.markdown("### 🚀 Platform Features")
+    The daily screener does not need company profiles, statements or news. Using
+    yfinance's batch endpoint here avoids a costly per-symbol request sequence.
+    """
+    provider_symbols = [f"{symbol}.IS" for symbol in symbols]
+    downloaded = yf.download(provider_symbols, period="1y", auto_adjust=True, group_by="ticker", threads=True, progress=False)
+    if downloaded.empty:
+        return {}
+    histories: dict[str, pd.DataFrame] = {}
+    if isinstance(downloaded.columns, pd.MultiIndex):
+        for symbol, provider_symbol in zip(symbols, provider_symbols):
+            if provider_symbol in downloaded.columns.get_level_values(0):
+                history = downloaded[provider_symbol].dropna(how="all")
+                if not history.empty:
+                    histories[symbol] = history
+    elif len(symbols) == 1:
+        histories[symbols[0]] = downloaded.dropna(how="all")
+    return histories
 
-f1,f2,f3=st.columns(3)
 
-with f1:
-    st.info("""
-### 🤖 AI Analysis
+def price_chart(history: pd.DataFrame, symbol: str) -> None:
+    view = history.tail(180).copy()
+    close = view["Close"]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=view.index, y=close, name="Kapanış", line={"color": "#54b7ff", "width": 2}))
+    fig.add_trace(go.Scatter(x=view.index, y=close.rolling(20).mean(), name="SMA 20", line={"color": "#f6c453", "width": 1.5}))
+    fig.add_trace(go.Scatter(x=view.index, y=close.rolling(50).mean(), name="SMA 50", line={"color": "#ca8cff", "width": 1.5}))
+    fig.update_layout(title=f"{symbol} · Son 180 işlem günü", height=360, margin={"l": 0, "r": 0, "t": 42, "b": 0},
+                      paper_bgcolor="#0d1b2d", plot_bgcolor="#0d1b2d", font={"color": "#dbeafe"}, legend={"orientation": "h"})
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(gridcolor="#1d3653")
+    st.plotly_chart(fig, use_container_width=True)
 
-• AI Confidence Score
 
-• Trend Detection
+def render_disclaimer() -> None:
+    st.markdown("<div class='disclaimer'><strong>Yatırım tavsiyesi değildir.</strong> Bu ekrandaki veriler bilgi ve araştırma amaçlıdır. Teknik göstergeler geçmiş fiyatlardan hesaplanır; gelecekteki performansı garanti etmez.</div>", unsafe_allow_html=True)
 
-• Buy/Sell Signals
 
-• Risk Management
-""")
+def render_home() -> None:
+    st.markdown("<div class='brand'>BCBIST AI</div><div class='muted'>Borsa İstanbul için şeffaf, veri odaklı analiz asistanı</div>", unsafe_allow_html=True)
+    render_disclaimer()
+    st.write("")
+    left, mid, right = st.columns(3)
+    with left:
+        st.markdown("<div class='card'><div class='eyebrow'>01 · Tek hisse analizi</div><h3>Veriyi tek yerde görün</h3><span class='muted'>Fiyat, teknik göstergeler, finansal özet ve mevcut haber bağlantıları.</span></div>", unsafe_allow_html=True)
+    with mid:
+        st.markdown("<div class='card'><div class='eyebrow'>02 · Şeffaf yorum</div><h3>Veri ile yorumu ayırın</h3><span class='muted'>Hesaplanan metrikler, yorumlardan ayrı gösterilir; eksik veri açıkça belirtilir.</span></div>", unsafe_allow_html=True)
+    with right:
+        st.markdown("<div class='card'><div class='eyebrow'>03 · İzleme listeleri</div><h3>Fırsatları kuralla tarayın</h3><span class='muted'>Günlük tarama, uzun vadeli kalite görünümü ve portföy analizi aynı temel üzerinde çalışır.</span></div>", unsafe_allow_html=True)
+    st.write("")
+    st.subheader("Nasıl çalışır?")
+    st.write("Sol menüden istediğiniz analiz ekranını açın. Kaynak, güncelleme zamanı ve ulaşılamayan alanlar sonuçta görünür.")
 
-with f2:
-    st.info("""
-### 📊 Technical Analysis
 
-• RSI
+def render_stock_analysis() -> None:
+    st.title("Tek Hisse Analizi")
+    st.caption(f"{len(STOCKS)} sembollük BIST tarama evreninden hisse seçin veya kutuya kod yazarak arayın.")
+    col_input, col_action = st.columns([4, 1])
+    with col_input:
+        current_symbol = st.session_state.get("symbol", "ASELS")
+        default_index = sorted(STOCKS).index(current_symbol) if current_symbol in STOCKS else 0
+        raw_symbol = st.selectbox(
+            "Hisse kodu",
+            options=sorted(STOCKS),
+            index=default_index,
+            format_func=lambda symbol: f"{symbol} — {STOCKS[symbol]['name']}",
+        )
+    with col_action:
+        st.write("")
+        run = st.button("Analiz oluştur", type="primary", use_container_width=True)
+    if run:
+        st.session_state.symbol = raw_symbol
+        st.session_state.analysis_requested = True
+    if not st.session_state.get("analysis_requested"):
+        st.info("Analiz için bir hisse kodu girip “Analiz oluştur” düğmesine basın.")
+        return
+    symbol = st.session_state.get("symbol", raw_symbol)
+    if not symbol:
+        st.warning("Lütfen geçerli bir BIST kodu girin.")
+        return
+    try:
+        with st.spinner(f"{symbol} verisi doğrulanıyor ve göstergeler hesaplanıyor..."):
+            data = fetch_stock(symbol)
+    except Exception as exc:
+        st.error(f"Veri alınamadı: {exc}")
+        st.caption("Piyasa kapalı olabilir, sembol hatalı olabilir veya veri sağlayıcısı geçici olarak erişilemez olabilir.")
+        return
 
-• MACD
+    history, info = data["history"], data["info"]
+    summary = calculate_technicals(history)
+    latest = float(history["Close"].iloc[-1])
+    previous = float(history["Close"].iloc[-2]) if len(history) > 1 else latest
+    change = ((latest / previous) - 1) * 100 if previous else 0
+    configured = STOCKS.get(symbol, {})
+    company_name = info.get("longName") or configured.get("name") or symbol
+    sector = info.get("sector") or configured.get("sector") or "Veri sağlayıcısında yok"
 
-• Bollinger Bands
+    st.subheader(company_name)
+    st.caption(f"Sembol: {symbol}.IS · Sektör: {sector} · Son fiyat çubuğu: {history.index[-1].strftime('%d.%m.%Y')}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Son kapanış", tr_number(latest, " TL"), f"{change:+.2f}%")
+    c2.metric("Piyasa değeri", compact_number(info.get("marketCap")))
+    c3.metric("İşlem hacmi", compact_number(history["Volume"].iloc[-1]))
+    c4.metric("Trend", summary.trend)
+    st.caption("Kaynak: Yahoo Finance. Fiyatlar gecikmeli olabilir; işlem öncesinde resmi/veri sağlayıcısı ekranından kontrol edin.")
 
-• Camarilla Levels
-""")
-
-with f3:
-    st.info("""
-### 🌍 Market Intelligence
-
-• BIST 100 Trend
-
-• USD/TRY
-
-• Gold
-
-• Brent Oil
-
-• Sector Valuation
-""")
-st.markdown("""
-<div style="text-align:center;padding:30px 0 10px 0;">
-
-<h1 style="
-font-size:58px;
-font-weight:900;
-margin-bottom:0;
-color:white;">
-📈 BCBIST AI
-</h1>
-
-<h3 style="
-color:#00ff88;
-margin-top:5px;">
-Professional BIST Stock Analyzer
-</h3>
-
-<p style="
-font-size:18px;
-color:#bbbbbb;
-max-width:850px;
-margin:auto;
-line-height:1.7;">
-
-Analyze more than <b>250 BIST companies</b> using
-<b>Artificial Intelligence</b>,
-technical indicators,
-sector valuation,
-risk management
-and macroeconomic analysis.
-
-</p>
-
-</div>
-""", unsafe_allow_html=True)
-col1,col2,col3,col4=st.columns(4)
-
-col1.metric("📈 Stocks","250+")
-col2.metric("🤖 AI Analysis","Live")
-col3.metric("📊 Indicators","15+")
-col4.metric("⚡ Updates","Real Time")
-
-if st.button("🚀 Launch AI Analysis", use_container_width=True):
-    with st.spinner("🤖 AI is analyzing the market..."):
-        import time
-
-        loading = st.empty()
-
-        steps = [
-            "🧠 Reading financial statements...",
-            "📊 Calculating technical indicators...",
-            "📈 Comparing sector valuations...",
-            "🌍 Analyzing macroeconomic conditions...",
-            "⚖️ Calculating risk score...",
-            "💡 Generating AI investment insights..."
-        ]
-
-        for step in steps:
-            loading.info(step)
-            time.sleep(0.6)
-
-        loading.success("✅ AI analysis completed.")
-        time.sleep(0.5)
-        loading.empty()
-    results = []
-    progress = st.progress(0)
-    status = st.empty()
-    backtest_data = {"signals": [], "correct": 0, "total": 0}
-    
-    for i, s in enumerate(STOCKS):
-        status.text(f"📡 {s['ticker']} ({i+1}/{len(STOCKS)})")
-        progress.progress((i+1)/len(STOCKS))
-        
-        try:
-            stock = yf.Ticker(s["ticker"])
-            info = stock.info
-            hist = stock.history(period="6mo")
-            
-            price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose", 0)
-            change = info.get("regularMarketChangePercent", 0) or 0
-            high = info.get("dayHigh", price*1.02)
-            low = info.get("dayLow", price*0.98)
-            volume = info.get("volume", 0) or info.get("regularMarketVolume", 0) or 0
-            avg_volume = info.get("averageVolume", 0) or 0
-            
-            if price <= 0: continue
-            
-            # ===== GERÇEK TEKNİK GÖSTERGELER =====
-            rsi_val = 50.0
-            macd_signal = "nötr"
-            if not hist.empty and len(hist) >= 26:
-                close = hist["Close"]
-                # RSI
-                delta = close.diff()
-                gain = delta.clip(lower=0).rolling(14).mean()
-                loss = (-delta.clip(upper=0)).rolling(14).mean()
-                rs = (gain / loss.replace(0,1)).iloc[-1]
-                rsi_val = 100 - (100/(1+rs))
-                
-                # MACD
-                ema12 = close.ewm(span=12).mean()
-                ema26 = close.ewm(span=26).mean()
-                macd = ema12 - ema26
-                signal_line = macd.ewm(span=9).mean()
-                macd_signal = "yukarı kesiş ✅" if macd.iloc[-1] > signal_line.iloc[-1] else "aşağı kesiş ❌"
-                # BOLLİNGER
-                sma20_bb = close.rolling(20).mean()
-                std20 = close.rolling(20).std()
-                bb_upper = sma20_bb + 2*std20
-                bb_lower = sma20_bb - 2*std20
-                bb_position = ((price - bb_lower.iloc[-1]) / max(bb_upper.iloc[-1] - bb_lower.iloc[-1], 0.01) * 100)
-                bb_width = ((bb_upper.iloc[-1] - bb_lower.iloc[-1]) / max(sma20_bb.iloc[-1], 0.01) * 100)
-                
-                if bb_position > 80: bb_signal = "Üst bant (aşırı alım)"
-                elif bb_position < 20: bb_signal = "Alt bant (aşırı satım)"
-                elif bb_width < 5: bb_signal = "Sıkışma"
-                else: bb_signal = "Normal"
-                
-                # CAMARİLLA
-                prev_high = hist["High"].iloc[-2] if len(hist) >= 2 else price
-                prev_low = hist["Low"].iloc[-2] if len(hist) >= 2 else price
-                prev_close = hist["Close"].iloc[-2] if len(hist) >= 2 else price
-                diff = max(prev_high - prev_low, 0.01)
-                
-                cam = {
-                    "R3": round(prev_close + diff * 1.25, 2),
-                    "R2": round(prev_close + diff * 1.1666, 2),
-                    "R1": round(prev_close + diff * 1.0833, 2),
-                    "Pivot": round((prev_high + prev_low + 2*prev_close) / 4, 2),
-                    "S1": round(prev_close - diff * 1.0833, 2),
-                    "S2": round(prev_close - diff * 1.1666, 2),
-                    "S3": round(prev_close - diff * 1.25, 2),
-                }
-                
-                if price <= cam["S3"]: cam_signal = "🟢 S3 AL FIRSATI"
-                elif price >= cam["R3"]: cam_signal = "🔴 R3 SAT FIRSATI"
-                elif price <= cam["S2"]: cam_signal = "🟡 S2'ye yakın"
-                elif price >= cam["R2"]: cam_signal = "🟠 R2'ye yakın"
-                else: cam_signal = "⚪ Normal"                
-                # Trend
-                sma20 = close.rolling(20).mean().iloc[-1]
-                sma50 = close.rolling(50).mean().iloc[-1] if len(close)>=50 else sma20
-                if price > sma20 > sma50: trend = "GÜÇLÜ YÜKSELİŞ"
-                elif price > sma20: trend = "YÜKSELİŞ"
-                elif price < sma20 < sma50: trend = "GÜÇLÜ DÜŞÜŞ"
-                elif price < sma20: trend = "DÜŞÜŞ"
-                else: trend = "YATAY"
-            else:
-                trend = "YATAY"
-                bb_signal = "Normal"
-                bb_position = 50
-                bb_width = 5
-                cam = {}
-                cam_signal = "⚪ Hesaplanamadı"
-            # ===== HACİM ANALİZİ =====
-            volume_ratio = (volume / avg_volume * 100) if avg_volume > 0 else 100
-            whale = "🐋 ANORMAL" if volume_ratio > 200 else "📊 YÜKSEK" if volume_ratio > 150 else "Normal"
-            
-            # ===== SEKTÖR BAZLI DEĞERLEME =====
-            sector = get_sector(s["ticker"].replace(".IS",""))
-            sector_fk = SECTOR_FK.get(sector, 10)
-            sector_pb = SECTOR_PB.get(sector, 1.5)
-            
-            pe = info.get("forwardPE", 0) or info.get("trailingPE", 0) or 0
-            pb = info.get("priceToBook", 0) or 0
-            
-            # ===== GÜVEN SKORU (AÇIKLAMALI) =====
-            reasons = []
-            confidence = 50
-            
-            # RSI
-            if rsi_val < 30:
-                confidence += 15; reasons.append("✅ RSI aşırı satım (dip fırsatı)")
-            elif rsi_val < 40:
-                confidence += 8; reasons.append("✅ RSI düşük bölgede")
-            elif rsi_val > 70:
-                confidence -= 12; reasons.append("⚠️ RSI aşırı alım (düzeltme riski)")
-            elif rsi_val > 60:
-                confidence -= 4; reasons.append("⚠️ RSI yüksek bölgede")
-            else:
-                reasons.append("ℹ️ RSI normal aralıkta")
-            
-            # MACD
-            if "yukarı" in macd_signal:
-                confidence += 10; reasons.append("✅ MACD yukarı kesti")
-            elif "aşağı" in macd_signal:
-                confidence -= 8; reasons.append("⚠️ MACD aşağı kesti")
-            
-            # Trend
-            if trend == "GÜÇLÜ YÜKSELİŞ":
-                confidence += 12; reasons.append("✅ Güçlü yükseliş trendi")
-            elif trend == "YÜKSELİŞ":
-                confidence += 6; reasons.append("✅ Yükseliş trendi")
-            elif trend == "GÜÇLÜ DÜŞÜŞ":
-                confidence -= 15; reasons.append("⚠️ Güçlü düşüş trendi")
-            elif trend == "DÜŞÜŞ":
-                confidence -= 8; reasons.append("⚠️ Düşüş trendi")
-            
-            # Değişim
-            if change > 3: confidence += 10; reasons.append("✅ Güçlü günlük yükseliş")
-            elif change > 1: confidence += 4
-            elif change < -3: confidence -= 12; reasons.append("⚠️ Sert düşüş")
-            elif change < -1: confidence -= 5
-            
-            # Hacim
-            if volume_ratio > 150: confidence += 8; reasons.append("✅ Yüksek hacim (ilgi var)")
-            elif volume_ratio < 50: confidence -= 5; reasons.append("⚠️ Düşük hacim")
-            # Bollinger
-            if bb_position > 80: confidence -= 8; reasons.append("⚠️ Bollinger üst bant (aşırı alım)")
-            elif bb_position < 20: confidence += 10; reasons.append("✅ Bollinger alt bant (aşırı satım fırsatı)")
-            elif bb_width < 5: confidence += 5; reasons.append("✅ Bollinger sıkışması (büyük hareket yakın)")
-            
-            # Camarilla
-            if price <= cam.get("S3", price): confidence += 12; reasons.append(f"✅ Camarilla S3 desteğinde (dip alım)")
-            elif price <= cam.get("S2", price): confidence += 6
-            elif price >= cam.get("R3", price): confidence -= 10; reasons.append(f"⚠️ Camarilla R3 direncinde (satış)")
-            elif price >= cam.get("R2", price): confidence -= 5
-            
-            # F/K sektör karşılaştırması
-            if pe > 0 and sector_fk > 0:
-                if pe < sector_fk * 0.7: confidence += 10; reasons.append(f"✅ F/K sektör altında ({pe:.1f} < {sector_fk})")
-                elif pe > sector_fk * 1.5: confidence -= 8; reasons.append(f"⚠️ F/K sektör üstünde ({pe:.1f} > {sector_fk})")
-            
-            # PD/DD sektör karşılaştırması
-            if pb > 0 and sector_pb > 0:
-                if pb < sector_pb * 0.7: confidence += 8; reasons.append(f"✅ PD/DD sektör altında")
-                elif pb > sector_pb * 1.5: confidence -= 5; reasons.append(f"⚠️ PD/DD sektör üstünde")
-            
-            confidence = min(100, max(5, int(confidence)))
-                        # BIST 100 trend etkisi
-            confidence = int(confidence * trend_effect)
-            confidence = min(100, max(5, confidence))
-            if trend_effect < 0.9:
-                reasons.append(f"⚠️ BIST 100 düşüşte, güven skoru düşürüldü (x{trend_effect})")
-            elif trend_effect > 1.1:
-                reasons.append(f"✅ BIST 100 yükselişte, güven skoru artırıldı (x{trend_effect})")
-            
-            # ===== SİNYAL =====
-            if confidence >= 70: sig, sclass = "KESİN AL", "badge-green"
-            elif confidence >= 55: sig, sclass = "AL", "badge-green"
-            elif confidence >= 40: sig, sclass = "ALABİLİRSİN", "badge-yellow"
-            elif confidence >= 25: sig, sclass = "BEKLE", "badge-yellow"
-            else: sig, sclass = "SAT", "badge-red"
-            
-            # ===== RİSK & POZİSYON =====
-            volatility = close.pct_change().std() * np.sqrt(252) * 100 if not hist.empty else 25
-
-            # Risk seviyesi
-            if volatility < 20:
-                risk = "🟢 Düşük"
-            elif volatility < 35:
-                risk = "🟡 Orta"
-            else:
-                risk = "🔴 Yüksek"
-
-            # ATR tabanlı hedef / stop
-            if not hist.empty and len(hist) >= 14:
-                atr = (
-                    (hist["High"] - hist["Low"])
-                    .rolling(14)
-                    .mean()
-                    .iloc[-1]
-                )
-            else:
-                atr = price * 0.03
-
-            stop = round(price - atr * 1.5, 2)
-            target = round(price + atr * 3, 2)
-
-            gain_pct = round(((target - price) / price) * 100, 2)
-            loss_pct = round(((price - stop) / price) * 100, 2)
-
-            # Risk / Ödül Oranı
-            risk_reward = round(
-                (target - price) / max(price - stop, 0.01),
-                2
-            )
-
-            # Pozisyon büyüklüğü
-            if confidence >= 80:
-                pos_pct = 20
-            elif confidence >= 70:
-                pos_pct = 15
-            elif confidence >= 55:
-                pos_pct = 10
-            elif confidence >= 40:
-                pos_pct = 5
-            else:
-                pos_pct = 0
-
-            results.append({
-                "ticker": s["ticker"].replace(".IS",""),
-                "name": s["name"],
-                "sector": sector,
-
-                "price": price,
-                "change": change,
-
-                "confidence": confidence,
-
-                "signal": sig,
-                "sclass": sclass,
-
-                "rsi": round(rsi_val,1),
-                "macd": macd_signal,
-                "trend": trend,
-
-                "volume_ratio": round(volume_ratio,1),
-                "whale": whale,
-
-                "bb_signal": bb_signal,
-                "bb_position": round(bb_position,1),
-                "bb_width": round(bb_width,1),
-
-                "cam": cam,
-                "cam_signal": cam_signal,
-
-                "pe": round(pe,1) if pe else 0,
-                "pb": round(pb,2) if pb else 0,
-
-                "sector_fk": sector_fk,
-                "sector_pb": sector_pb,
-
-                "target": target,
-                "stop": stop,
-
-                "gain": gain_pct,
-                "loss": loss_pct,
-
-                "risk": risk,
-                "risk_reward": risk_reward,
-                "volatility": round(volatility,1),
-
-                "pos_pct": pos_pct,
-
-                "reasons": reasons,
-            })
-        except:
-            pass
-    results.sort(
-    key=lambda x: (
-        x["confidence"],
-        x["change"],
-        x["volume_ratio"]
-    ),
-    reverse=True
-)
-    status.empty()
-    progress.empty()
-    
-    st.success(f"✅ {len(results)} hisse analiz edildi! (Gerçek RSI, MACD, Sektör Bazlı)")
-    
-    # ===== GÜVEN SKORU SIRALI LİSTE =====
-    st.subheader(f"📊 Güven Skoruna Göre Sıralı ({len(results)} hisse)")
-    
-    for r in results:
-        ch = f"+%{r['change']:.1f}" if r['change']>=0 else f"%{r['change']:.1f}"
-        ch_c = "#00ff88" if r['change']>=0 else "#ff4444"
-        conf_c = "#00ff88" if r['confidence']>=70 else "#ffaa00" if r['confidence']>=40 else "#ff4444"
-        
-        st.markdown(f"""
-        <div class="row">
-            <div>
-                <b>{r['ticker']}</b> <small>{r['name']}</small><br>
-                <small style="color:#888;">{r['sector']} • RSI:{r['rsi']:.0f} • {r['trend']} • {r['whale']}</small>
-            </div>
-            <div style="text-align:right;">
-                <span style="font-size:18px;font-weight:700;">{r['price']:.2f}₺</span>
-                <small style="color:{ch_c};">{ch}</small><br>
-                <span style="font-size:16px;font-weight:900;color:{conf_c};">Güven: %{r['confidence']:.0f}</span>
-                <span class="{r['sclass']}" style="margin-left:6px;">{r['signal']}</span>
-            </div>
-        </div>
-        <div class="confidence-bar">
-            <div class="confidence-fill" style="width:{r['confidence']}%; background:{conf_c};"></div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        with st.expander(f"📋 {r['ticker']} - NEDEN %{r['confidence']:.0f}?"):
-            # NEDENLER
-            st.subheader("🔍 Neden Bu Skor?")
-            for reason in r["reasons"]:
-                st.markdown(f"- {reason}")
-            
-            st.markdown("---")
-            
-            # TEKNİK DETAY
-            col1, col2, col3, col4, col5 = st.columns(5)
-
-            col1.metric("RSI(14)", f"{r['rsi']:.0f}")
-            col2.metric("MACD", r["macd"])
-            col3.metric("Trend", r["trend"])
-            col4.metric("Volatilite", f"%{r['volatility']:.1f}")
-            col5.metric("Risk", r["risk"])
-            
-            st.markdown("---")
-            st.subheader("📊 Bollinger & Camarilla")
-            col1, col2 = st.columns(2)
-            with col1: st.metric("Bollinger", r.get('bb_signal','N/A'), delta=f"Poz: %{r.get('bb_position',50):.0f}")
-            with col2: st.metric("Camarilla", r.get('cam_signal','N/A'))
-            
-            cam = r.get('cam', {})
-            if cam:
-                cols = st.columns(7)
-                seviyeler = [("R3",cam.get('R3',0),"#ff4444"),("R2",cam.get('R2',0),"#ff8888"),("R1",cam.get('R1',0),"#ffaaaa"),("P",cam.get('Pivot',0),"#ffffff"),("S1",cam.get('S1',0),"#aaffaa"),("S2",cam.get('S2',0),"#88ff88"),("S3",cam.get('S3',0),"#44ff44")]
-                for i, (n, v, c) in enumerate(seviyeler):
-                    with cols[i]: st.markdown(f'<div style="text-align:center;padding:4px;background:rgba(255,255,255,0.03);border-radius:6px;"><small style="color:{c};">{n}</small><br><b style="font-size:13px;">{v:.2f}</b></div>', unsafe_allow_html=True)
-                      
-            # SEKTÖR KARŞILAŞTIRMASI
-            if r['pe'] > 0:
-                st.markdown("---")
-                st.subheader("📊 Sektör Karşılaştırması")
-                col1, col2 = st.columns(2)
-                col1.metric("F/K", f"{r['pe']:.1f}", delta=f"Sektör: {r['sector_fk']}")
-                col2.metric("PD/DD", f"{r['pb']:.2f}", delta=f"Sektör: {r['sector_pb']}")
-            
-            # RİSK & POZİSYON
-            st.markdown("---")
-            st.subheader("🎯 Risk & Pozisyon Yönetimi")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("🎯 Hedef", f"{r['target']:.2f}₺", delta=f"+%{r['gain']:.1f}")
-            col2.metric("🛑 Stop", f"{r['stop']:.2f}₺", delta=f"-%{r['loss']:.1f}", delta_color="inverse")
-            col3.metric("💰 Pozisyon", f"%{r['pos_pct']}", delta="Önerilen")
-            
-            st.caption(f"⚠️ Bu bir karar destek sistemidir. Yatırım tavsiyesi değildir. Güven skoru sadece teknik verilere dayanır, haber ve makro verileri içermez.")
-    # ===== GÜNLÜK/KISA VADE HIZLI ÖNERİLER =====
-    st.markdown("---")
-    st.subheader("⚡ GÜNLÜK / KISA VADE AL-SAT ÖNERİLERİ")
-    st.caption("Yüksek momentum • Gün içi fırsat • 1-3 günlük pozisyon")
-    
-    # Kısa vade için: değişim + RSI + hacim bazlı sırala
-    short_term = [r for r in results if r['change'] > 0 and r['rsi'] < 65 and r['volume_ratio'] > 80]
-    short_term.sort(key=lambda x: (x['change'] + (70-x['rsi'])*0.3 + x['volume_ratio']*0.02), reverse=True)
-    short_term = short_term[:8]
-    
-    if short_term:
+    price_chart(history, symbol)
+    technical_tab, financial_tab, news_tab, conclusion_tab = st.tabs(["Teknik Analiz", "Finansal Analiz", "Haberler", "Genel Değerlendirme"])
+    with technical_tab:
         cols = st.columns(4)
-        for i, r in enumerate(short_term):
-            with cols[i % 4]:
-                st.markdown(f"""
-                <div style="background:linear-gradient(135deg, rgba(0,255,136,0.08), rgba(0,136,255,0.08)); border:2px solid rgba(0,255,136,0.3); border-radius:16px; padding:12px; text-align:center; margin:4px 0;">
-                    <div style="font-size:18px; font-weight:900;">{r['ticker']}</div>
-                    <div style="font-size:11px; color:#888;">{r['name'][:15]}</div>
-                    <div style="font-size:24px; font-weight:900; margin:6px 0;">{r['price']:.2f}₺</div>
-                    <div style="color:#00ff88;">+%{r['change']:.1f}</div>
-                    <div style="font-size:11px; color:#888;">RSI:{r['rsi']:.0f} • Hedef:{r['target']:.2f}₺</div>
-                    <div style="margin-top:4px;">
-                        <span class="badge-green" style="font-size:11px;">GÜN İÇİ</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                with st.expander(f"📋 {r['ticker']} Kısa Vade Planı"):
-                    st.markdown(f"""
-                    ### ⚡ {r['ticker']} Gün İçi İşlem Planı
-                    
-                    | Adım | Fiyat | Ne Yapmalı? |
-                    |------|-------|-------------|
-                    | 🟢 **Giriş** | {r['price']:.2f}₺ | Şimdi al |
-                    | 📈 **%50 Kâr** | {round(r['price'] + (r['target']-r['price'])*0.5, 2):.2f}₺ | Yarısını sat |
-                    | 🎯 **Hedef** | {r['target']:.2f}₺ | Kalanı sat |
-                    | 🛑 **Zarar Kes** | {r['stop']:.2f}₺ | Hemen çık |
-                    
-                    **⏱️ Süre:** 1-3 gün
-                    **💰 Kâr:** +%{r['gain']:.1f}
-                    **⚠️ Risk:** -%{r['loss']:.1f}
-                    **📊 Hacim:** %{r['volume_ratio']:.0f} (ortalamaya göre)
-                    """)
-    else:
-        st.info("Şu an kısa vade için uygun hisse bulunamadı. Piyasa durgun olabilir.")
-else:
-    st.info("👆 'TÜM HİSSELERİ ANALİZ ET' butonuna tıklayın. Her şey GERÇEK verilerle hesaplanacak.")
-# ========== BIST 100 ENDEKS TRENDİ ==========
-st.markdown("---")
-st.subheader("📈 BIST 100 ENDEKS ANALİZİ")
-
-trend_effect = 1.0
-bist_trend = "VERİ YOK"
-bist_price = 0
-bist_change = 0
-
-try:
-    bist = yf.Ticker("XU100.IS")
-    bist_hist = bist.history(period="1mo")
-    
-    if not bist_hist.empty and len(bist_hist) >= 5:
-        bist_close = bist_hist["Close"]
-        bist_price = bist_close.iloc[-1]
-        bist_prev = bist_close.iloc[-2] if len(bist_close) >= 2 else bist_price
-        bist_change = ((bist_price - bist_prev) / bist_prev) * 100
-        
-        change_5d = ((bist_close.iloc[-1] - bist_close.iloc[-5]) / bist_close.iloc[-5]) * 100 if len(bist_close) >= 5 else 0
-        
-        if bist_change > 1 and change_5d > 2:
-            bist_trend = "GÜÇLÜ YÜKSELİŞ"
-            trend_effect = 1.2
-        elif bist_change > 0 and change_5d > 0:
-            bist_trend = "YÜKSELİŞ"
-            trend_effect = 1.1
-        elif bist_change < -1 and change_5d < -2:
-            bist_trend = "GÜÇLÜ DÜŞÜŞ"
-            trend_effect = 0.7
-        elif bist_change < 0 and change_5d < 0:
-            bist_trend = "DÜŞÜŞ"
-            trend_effect = 0.85
+        cols[0].metric("RSI (14)", tr_number(summary.rsi, "", 1))
+        cols[1].metric("MACD", tr_number(summary.macd, "", 2))
+        cols[2].metric("Momentum (20g)", tr_number(summary.momentum_20d, "%", 1))
+        cols[3].metric("Hacim / Ort. (20g)", tr_number(summary.volume_ratio, "x", 2))
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("SMA 20", tr_number(summary.sma_20, " TL"))
+        c2.metric("SMA 50", tr_number(summary.sma_50, " TL"))
+        c3.metric("Destek (20g)", tr_number(summary.support, " TL"))
+        c4.metric("Direnç (20g)", tr_number(summary.resistance, " TL"))
+        st.caption(f"ATR (14): {tr_number(summary.atr_14, ' TL')} · ATR, son dönemdeki ortalama günlük fiyat hareket aralığını gösterir.")
+        st.subheader("Gösterge açıklamaları")
+        for explanation in summary.explanations:
+            st.write("• " + explanation)
+        st.caption("Destek ve direnç, son en fazla 20 işlem gününün düşük/yüksek değerleridir; kesin fiyat seviyesi değildir.")
+    with financial_tab:
+        income, balance, cashflow = data["income"], data["balance"], data["cashflow"]
+        revenue = latest_value(income, ["Total Revenue", "Operating Revenue"])
+        net_income = latest_value(income, ["Net Income", "Net Income Common Stockholders"])
+        ebitda = latest_value(income, ["EBITDA", "Normalized EBITDA"])
+        total_debt = latest_value(balance, ["Total Debt", "Long Term Debt And Capital Lease Obligation"])
+        equity = latest_value(balance, ["Stockholders Equity", "Total Stockholder Equity"])
+        operating_cashflow = latest_value(cashflow, ["Operating Cash Flow", "Total Cash From Operating Activities"])
+        f1, f2, f3 = st.columns(3)
+        f1.metric("Gelir", compact_number(revenue))
+        f2.metric("Net kâr", compact_number(net_income))
+        f3.metric("FAVÖK", compact_number(ebitda))
+        f4, f5, f6 = st.columns(3)
+        f4.metric("Toplam borç", compact_number(total_debt))
+        f5.metric("Öz kaynak", compact_number(equity))
+        f6.metric("Faaliyet nakit akışı", compact_number(operating_cashflow))
+        observations = []
+        if revenue is not None and net_income is not None:
+            observations.append(f"Hesaplanan net kâr marjı: %{(net_income / revenue) * 100:.1f}.")
+        if total_debt is not None and equity not in (None, 0):
+            observations.append(f"Borç / öz kaynak oranı: %{(total_debt / equity) * 100:.1f}.")
+        if operating_cashflow is not None:
+            observations.append("Faaliyet nakit akışı, şirketin ana faaliyetlerinden ürettiği nakdi gösterir.")
+        if observations:
+            st.subheader("Hesaplanmış finansal notlar")
+            for observation in observations:
+                st.write("• " + observation)
         else:
-            bist_trend = "YATAY"
-            trend_effect = 1.0
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("BIST 100", f"{bist_price:,.0f}", delta=f"%{bist_change:.2f}")
-        with col2:
-            emoji = "🚀" if trend_effect>=1.2 else "📈" if trend_effect>=1.1 else "🔻" if trend_effect<=0.7 else "📉" if trend_effect<1.0 else "➡️"
-            st.markdown(f"### {emoji} {bist_trend}")
-        with col3:
-            st.metric("5 Günlük", f"%{change_5d:.2f}")
-        with col4:
-            if trend_effect >= 1.1:
-                st.success("Piyasa destekliyor")
-            elif trend_effect >= 0.85:
-                st.warning("Piyasa temkinli")
+            st.info("Veri sağlayıcısı bu sembol için yeterli finansal tablo döndürmedi. Finansal yorum üretilmedi.")
+        st.caption("Finansal dönemler şirket bazında farklılaşabilir. Karşılaştırma öncesinde dönem ve para birimini resmi finansal rapordan doğrulayın.")
+    with news_tab:
+        st.subheader("Sağlayıcının sunduğu güncel bağlantılar")
+        news_items = data["news"]
+        if not news_items:
+            st.info("Bu sembol için veri sağlayıcısı haber bağlantısı döndürmedi. KAP bildirimleri ayrıca resmi KAP kaynağından doğrulanmalıdır.")
+        for item in news_items[:8]:
+            content = item.get("content", item)
+            title = content.get("title") or item.get("title") or "Başlıksız içerik"
+            provider = content.get("provider", {}).get("displayName") or content.get("publisher") or "Kaynak belirtilmemiş"
+            url = content.get("canonicalUrl", {}).get("url") or content.get("clickThroughUrl", {}).get("url") or item.get("link")
+            if url:
+                st.markdown(f"- [{title}]({url})  \\n+  <span class='source'>Kaynak: {provider}</span>", unsafe_allow_html=True)
             else:
-                st.error("Piyasa baskılıyor")
-
-except Exception as e:
-    st.warning(f"{s['ticker']} analiz edilirken hata oluştu.")
-    print(e)
-    st.warning(f"BIST 100 verisi çekilemedi. Sinyaller normal devam eder.")
-    
-# ========== MAKRO EKONOMİK VERİLER ==========
-st.markdown("---")
-st.subheader("🌍 MAKRO EKONOMİK GÖSTERGELER")
-
-macro_col1, macro_col2, macro_col3, macro_col4, macro_col5 = st.columns(5)
-
-# USD/TRY
-try:
-    usd = yf.Ticker("USDTRY=X")
-    usd_info = usd.info
-    usd_price = usd_info.get("currentPrice") or usd_info.get("regularMarketPrice") or 0
-    usd_change = usd_info.get("regularMarketChangePercent", 0) or 0
-    macro_col1.metric("💵 USD/TRY", f"{usd_price:.2f}₺", delta=f"%{usd_change:.2f}")
-except:
-    macro_col1.metric("💵 USD/TRY", "Veri yok")
-
-# EUR/TRY
-try:
-    eur_usd = yf.Ticker("EURUSD=X")
-    eur_usd_info = eur_usd.info
-    eur_usd_price = eur_usd_info.get("currentPrice") or eur_usd_info.get("regularMarketPrice") or 1.08
-    eur_price = eur_usd_price * usd_price if usd_price > 0 else 35
-    macro_col2.metric("💶 EUR/TRY", f"{eur_price:.2f}₺" if eur_price else "Veri yok")
-except:
-    macro_col2.metric("💶 EUR/TRY", "Veri yok")
-
-# Gram Altın
-try:
-    gold_ons = yf.Ticker("GC=F")
-    gold_info = gold_ons.info
-    gold_ons_usd = gold_info.get("currentPrice") or gold_info.get("regularMarketPrice") or 0
-    # Ons'tan grama çevir (1 ons = 31.1 gram)
-    gold_gram_usd = gold_ons_usd / 31.1
-    # TL'ye çevir
-    gold_try = gold_gram_usd * usd_price if usd_price > 0 else 0
-    macro_col3.metric("🪙 Altın (Gram)", f"{gold_try:.0f}₺" if gold_try > 500 else "Veri yok")
-except:
-    macro_col3.metric("🪙 Altın", "Veri yok")
-# Petrol Brent
-try:
-    oil = yf.Ticker("BZ=F")
-    oil_info = oil.info
-    oil_price = oil_info.get("currentPrice") or oil_info.get("regularMarketPrice") or 0
-    oil_change = oil_info.get("regularMarketChangePercent", 0) or 0
-    macro_col4.metric("🛢️ Brent Petrol", f"${oil_price:.1f}" if oil_price else "Veri yok", delta=f"%{oil_change:.2f}" if oil_change else None)
-except:
-    macro_col4.metric("🛢️ Brent", "Veri yok")
-
-# BIST 100'ü tekrar göster (özet)
-macro_col5.metric("📊 BIST 100", f"{bist_price:,.0f}" if bist_price > 0 else "Veri yok", delta=f"%{bist_change:.2f}" if bist_change else None)
-
-# Faiz yorumu (TCMB politika faizi sabit)
-try:
-    usd_msg = 'Yüksek faiz, TL varlıkları baskılar.' if usd_price < 35 else 'Kur yükselişi ihracatçıları destekler.'
-except:
-    usd_msg = 'Piyasa verisi çekilemedi.'
-st.info(f"🏦 **TCMB Politika Faizi:** %42.5 | 💰 **Piyasa Yorumu:** {usd_msg}")
-st.caption("📊 Makro veriler yfinance üzerinden 15 dakika gecikmeli gelir. Yatırım kararı için tek başına yeterli değildir.")
-    # ========== BACKTEST SİSTEMİ ==========
-st.markdown("---")
-st.subheader("📊 BACKTEST - Geçmiş Sinyal Başarı Oranı")
-st.caption("Son 6 ay verisiyle sinyaller test ediliyor...")
-
-if st.button("🔄 BACKTEST ÇALIŞTIR (İlk 20 Hisse)", use_container_width=True):
-    backtest_results = []
-    test_progress = st.progress(0)
-    test_status = st.empty()
-    
-    for i, s in enumerate(STOCKS): 
-        test_status.text(f"Backtest: {s['ticker']} ({i+1}/20)")
-        test_progress.progress((i+1)/len(STOCKS))
-        
-        try:
-            stock = yf.Ticker(s["ticker"])
-            hist = stock.history(period="6mo")
-            
-            if len(hist) < 60: continue
-            
-            # Son 6 ayı 3'er aylık iki döneme ayır
-            mid = len(hist) // 2
-            first_half = hist.iloc[:mid]
-            second_half = hist.iloc[mid:]
-            
-            # İlk yarıdaki sinyali hesapla
-            close1 = first_half["Close"]
-            delta = close1.diff()
-            gain = delta.clip(lower=0).rolling(14).mean()
-            loss = (-delta.clip(upper=0)).rolling(14).mean()
-            rs = (gain / loss.replace(0,1)).iloc[-1]
-            rsi1 = 100 - (100/(1+rs))
-            
-            sma20_1 = close1.rolling(20).mean().iloc[-1]
-            sma50_1 = close1.rolling(50).mean().iloc[-1] if len(close1)>=50 else sma20_1
-            price1 = close1.iloc[-1]
-            
-            if price1 > sma20_1 > sma50_1: signal = "AL"
-            elif price1 < sma20_1 < sma50_1: signal = "SAT"
-            else: signal = "BEKLE"
-            
-            # İkinci yarıdaki gerçek sonuç
-            price2_start = second_half["Close"].iloc[0]
-            price2_end = second_half["Close"].iloc[-1]
-            actual_change = ((price2_end - price2_start) / price2_start) * 100
-            
-            # Sinyal doğru mu?
-            # Doğruluk kontrolü
-            if signal == "AL" and actual_change > 2: correct = True      # AL dedi, %2'den fazla yükseldi
-            elif signal == "AL" and actual_change > 0: correct = True     # AL dedi, yükseldi (az bile olsa)
-            elif signal == "SAT" and actual_change < -2: correct = True   # SAT dedi, %2'den fazla düştü
-            elif signal == "SAT" and actual_change < 0: correct = True    # SAT dedi, düştü (az bile olsa)
-            elif signal == "BEKLE": correct = True                        # BEKLE dedi, her türlü doğru say (risk almadı)
-            elif signal == "AL" and actual_change > -2: correct = True    # AL dedi, %2'den az düştü (kabul edilebilir)
-            elif signal == "SAT" and actual_change < 2: correct = True    # SAT dedi, %2'den az yükseldi (kabul edilebilir)
-            else: correct = False
-            
-            backtest_results.append({
-                "ticker": s["ticker"].replace(".IS",""),
-                "signal": signal,
-                "predicted": "Yükseliş" if signal=="AL" else "Düşüş" if signal=="SAT" else "Yatay",
-                "actual": f"%{actual_change:.1f}",
-                "correct": "✅" if correct else "❌",
-                "score": round(actual_change, 1) if correct else round(-abs(actual_change), 1),
-            })
-        except: pass
-    
-    test_status.empty()
-    test_progress.empty()
-    
-    if backtest_results:
-        correct_count = sum(1 for r in backtest_results if r["correct"] == "✅")
-        total = len(backtest_results)
-        accuracy = (correct_count / total * 100) if total > 0 else 0
-        
-        # Başarı metrikleri
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Toplam Test", f"{total} sinyal")
-        col2.metric("Doğru Tahmin", f"{correct_count} (%{accuracy:.0f})")
-        col3.metric("Başarı Puanı", f"{accuracy:.0f}/100")
-        
-        # Sonuç tablosu
-        st.dataframe(pd.DataFrame(backtest_results), use_container_width=True)
-        
-        # Yorum
-        if accuracy >= 65:
-            st.success(f"✅ Backtest başarılı! %{accuracy:.0f} doğruluk oranı. Sistem güvenilir seviyede.")
-        elif accuracy >= 50:
-            st.warning(f"⚠️ Backtest orta seviyede. %{accuracy:.0f} doğruluk. Ek filtreleme önerilir.")
+                st.write(f"• {title} — {provider}")
+        st.caption("Haber metinleri model tarafından yorumlanmaz; bağlantılar kaynak kontrolü için gösterilir.")
+    with conclusion_tab:
+        score, reasons = score_opportunity(summary)
+        st.subheader("Kural tabanlı teknik görünüm")
+        st.write(f"İzleme puanı: **{score}/100**")
+        if reasons:
+            for reason in reasons:
+                st.write("• " + reason)
         else:
-            st.error(f"❌ Backtest zayıf. %{accuracy:.0f} doğruluk. Sistem iyileştirilmeli.")
-    else:
-        st.info("Yeterli veri bulunamadı.")
+            st.info("Tanımlı izleme kuralları şu anda belirgin bir teknik kesişim göstermiyor.")
+        st.write("Bu puan, yalnızca ekrandaki teknik kuralların sayısal özeti olup alım, satım ya da hedef fiyat önerisi değildir.")
+    render_disclaimer()
+    st.caption(f"Son uygulama yenilemesi: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
 
-# ========== OTOMATİK ANALİZ YÖNETİMİ ==========
-if "auto_run" not in st.session_state:
-    st.session_state.auto_run = False
-    st.session_state.all_results = None
-    st.session_state.backtest_results = None
 
-st.sidebar.markdown("---")
-if st.sidebar.button("🚀 TÜM ANALİZLERİ BAŞLAT (TEK TIK)", use_container_width=True, type="primary"):
-    st.session_state.auto_run = True
-    st.session_state.all_results = None
-    st.session_state.backtest_results = None
-    st.rerun()
+def risk_from_history(history: pd.DataFrame) -> str:
+    """Classify historical volatility; it is not a forecast of risk."""
+    returns = history["Close"].pct_change().dropna().tail(60)
+    if returns.empty:
+        return "Veri yetersiz"
+    annualized_volatility = float(returns.std() * (252 ** 0.5) * 100)
+    if annualized_volatility < 25:
+        return "Düşük"
+    if annualized_volatility < 45:
+        return "Orta"
+    return "Yüksek"
 
-if st.session_state.auto_run:
-    st.sidebar.success("✅ Otomatik mod aktif")
+
+def render_daily_opportunities() -> None:
+    st.title("Günlük Fırsatlar")
+    st.write("Bu sayfa bir öneri listesi değildir. Seçili sembollerde, açıkça tanımlanmış teknik kuralların güncel durumunu gösterir.")
+    scope_label = st.selectbox("Tarama kapsamı", ["Hızlı tarama · ilk 50 sembol", "Geniş tarama · ilk 150 sembol", f"Tam tarama · {len(STOCKS)} sembol"], index=0)
+    scope_size = 50 if scope_label.startswith("Hızlı") else 150 if scope_label.startswith("Geniş") else len(STOCKS)
+    st.caption(f"Tarama evreni: {scope_size} sembol. İlk taramada veri sağlayıcısı çağrıları nedeniyle uzun sürebilir; sonraki istekler önbellekten daha hızlı gelir.")
+    if not st.button("Günlük taramayı çalıştır", type="primary"):
+        st.info("Tarama başlatıldığında her sembolün fiyat verisi alınır ve aynı teknik kurallar uygulanır.")
+        render_disclaimer()
+        return
+
+    rows: list[dict[str, Any]] = []
+    symbols = list(STOCKS)[:scope_size]
+    with st.spinner(f"{len(symbols)} sembolün fiyat verisi tek seferde alınıyor..."):
+        histories = fetch_price_histories(tuple(symbols))
+    progress = st.progress(0, text="Teknik göstergeler hesaplanıyor...")
+    for index, symbol in enumerate(symbols, start=1):
+        try:
+            history = histories.get(symbol)
+            if history is None or history.empty:
+                raise ValueError("Fiyat verisi alınamadı")
+            summary = calculate_technicals(history)
+            score, reasons = score_opportunity(summary)
+            price = float(history["Close"].iloc[-1])
+            rows.append({
+                "Sembol": symbol,
+                "Şirket": STOCKS[symbol]["name"],
+                "Puan": score,
+                "Risk": risk_from_history(history),
+                "Son Fiyat (TL)": price,
+                "Trend": summary.trend,
+                "Gerekçeler": reasons,
+                "Destek": summary.support,
+                "Direnç": summary.resistance,
+            })
+        except Exception as exc:
+            rows.append({"Sembol": symbol, "Şirket": STOCKS[symbol]["name"], "Puan": None, "Risk": "Veri alınamadı", "Son Fiyat (TL)": None, "Trend": "Veri alınamadı", "Gerekçeler": [str(exc)], "Destek": None, "Direnç": None})
+        progress.progress(index / len(symbols), text=f"{symbol} taranıyor ({index}/{len(symbols)})")
+    progress.empty()
+
+    valid_rows = [row for row in rows if row["Puan"] is not None]
+    valid_rows.sort(key=lambda row: row["Puan"], reverse=True)
+    if not valid_rows:
+        st.error("Tarama için veri alınamadı. Lütfen daha sonra yeniden deneyin.")
+        return
+    table = pd.DataFrame(valid_rows)[["Sembol", "Puan", "Risk", "Son Fiyat (TL)", "Trend"]]
+    top_candidates = valid_rows[:3]
+    if top_candidates:
+        st.subheader("Bugünün belirgin izleme adayları")
+        candidate_columns = st.columns(len(top_candidates))
+        for column, candidate in zip(candidate_columns, top_candidates):
+            with column:
+                st.markdown(f"<div class='candidate'><div class='eyebrow'>İZLEME ADAYI</div><h3>{candidate['Sembol']}</h3><b>{candidate['Puan']}/100</b> teknik puan<br><span class='muted'>Risk: {candidate['Risk']}</span></div>", unsafe_allow_html=True)
+    st.dataframe(table, use_container_width=True, hide_index=True, column_config={"Son Fiyat (TL)": st.column_config.NumberColumn(format="%.2f TL")})
+    st.subheader("Adayların hesaplama gerekçesi")
+    for row in valid_rows:
+        with st.expander(f"{row['Sembol']} · {row['Puan']}/100 · {row['Risk']} volatilite"):
+            st.write(row["Şirket"])
+            if row["Gerekçeler"]:
+                for reason in row["Gerekçeler"]:
+                    st.write("• " + reason)
+            else:
+                st.write("Tanımlı kurallarda pozitif kesişim tespit edilmedi.")
+            st.write(f"İzleme seviyeleri — destek: {tr_number(row['Destek'], ' TL')}, direnç: {tr_number(row['Direnç'], ' TL')}")
+    st.caption("Puan; trend, RSI, MACD ve hacim kurallarının toplamıdır. Şirketin finansal kalitesini veya haber akışını henüz içermez.")
+    render_disclaimer()
+
+
+def calculate_quality(data: dict[str, Any]) -> tuple[int, list[str]]:
+    """Produce a transparent, limited financial-quality score from available statements."""
+    income, balance, cashflow = data["income"], data["balance"], data["cashflow"]
+    revenue = latest_value(income, ["Total Revenue", "Operating Revenue"])
+    net_income = latest_value(income, ["Net Income", "Net Income Common Stockholders"])
+    debt = latest_value(balance, ["Total Debt", "Long Term Debt And Capital Lease Obligation"])
+    equity = latest_value(balance, ["Stockholders Equity", "Total Stockholder Equity"])
+    operating_cashflow = latest_value(cashflow, ["Operating Cash Flow", "Total Cash From Operating Activities"])
+    score, reasons = 0, []
+    if revenue not in (None, 0) and net_income is not None and net_income > 0:
+        score += 30
+        reasons.append("Son erişilebilir dönemde net kâr pozitif.")
+    if revenue not in (None, 0) and net_income is not None and (net_income / revenue) >= 0.10:
+        score += 20
+        reasons.append("Hesaplanan net kâr marjı %10 veya üzeri.")
+    if operating_cashflow is not None and operating_cashflow > 0:
+        score += 25
+        reasons.append("Faaliyetlerden nakit akışı pozitif.")
+    if debt is not None and equity not in (None, 0) and debt / equity < 1:
+        score += 25
+        reasons.append("Borç / öz kaynak oranı 1'in altında.")
+    return score, reasons
+
+
+def render_long_term() -> None:
+    st.title("Uzun Vadeli")
+    st.write("Buradaki görünüm, fiyat hareketinden ziyade erişilebilir finansal tablolardaki kârlılık, borçluluk ve nakit üretimine odaklanır.")
+    scope_label = st.selectbox("Finansal tarama kapsamı", ["Hızlı tarama · ilk 50 sembol", "Geniş tarama · ilk 150 sembol", f"Tam tarama · {len(STOCKS)} sembol"], index=0)
+    scope_size = 50 if scope_label.startswith("Hızlı") else 150 if scope_label.startswith("Geniş") else len(STOCKS)
+    if not st.button("Finansal kalite taramasını çalıştır", type="primary"):
+        st.info("Tarama, aynı V2 sembol evreninin erişilebilir finansal tablolarını şeffaf kurallarla değerlendirir.")
+        render_disclaimer()
+        return
+    rows: list[dict[str, Any]] = []
+    progress = st.progress(0, text="Finansal tablolar okunuyor...")
+    symbols = list(STOCKS)[:scope_size]
+    for index, symbol in enumerate(symbols, start=1):
+        try:
+            data = fetch_stock(symbol)
+            score, reasons = calculate_quality(data)
+            rows.append({"Sembol": symbol, "Sektör": STOCKS[symbol]["sector"], "Kalite puanı": score, "Kriterler": reasons})
+        except Exception:
+            rows.append({"Sembol": symbol, "Sektör": STOCKS[symbol]["sector"], "Kalite puanı": None, "Kriterler": []})
+        progress.progress(index / len(symbols), text=f"{symbol} değerlendiriliyor ({index}/{len(symbols)})")
+    progress.empty()
+    valid_rows = sorted((row for row in rows if row["Kalite puanı"] is not None), key=lambda row: row["Kalite puanı"], reverse=True)
+    if not valid_rows:
+        st.error("Finansal tablolar alınamadı. Lütfen daha sonra yeniden deneyin.")
+        return
+    st.dataframe(pd.DataFrame(valid_rows)[["Sembol", "Sektör", "Kalite puanı"]], use_container_width=True, hide_index=True)
+    for row in valid_rows:
+        with st.expander(f"{row['Sembol']} · finansal kalite puanı: {row['Kalite puanı']}/100"):
+            if row["Kriterler"]:
+                for criterion in row["Kriterler"]:
+                    st.write("• " + criterion)
+            else:
+                st.write("Veri mevcut olsa da tanımlı kalite kuralları karşılanmadı veya tablo kalemleri eşleşmedi.")
+    st.caption("Puan, yalnızca erişilebilir son dönem tablolarına dayanır; büyüme, yönetim kalitesi, değerleme ve gelecek beklentileri içermez.")
+    render_disclaimer()
+
+
+def render_portfolio_assistant() -> None:
+    st.title("Portföy Asistanı")
+    st.write("Portföyünüze ait adet ve maliyet bilgisini girin. Hesaplamalar yalnızca bu tarayıcı oturumunda işlenir; kalıcı olarak saklanmaz.")
+    default_portfolio = pd.DataFrame([
+        {"Sembol": "ASELS", "Adet": 0.0, "Ortalama Maliyet (TL)": 0.0},
+        {"Sembol": "THYAO", "Adet": 0.0, "Ortalama Maliyet (TL)": 0.0},
+    ])
+    portfolio = st.data_editor(default_portfolio, num_rows="dynamic", use_container_width=True, hide_index=True,
+                               column_config={"Sembol": st.column_config.TextColumn("Sembol", required=True), "Adet": st.column_config.NumberColumn(min_value=0.0), "Ortalama Maliyet (TL)": st.column_config.NumberColumn(min_value=0.0)})
+    if not st.button("Portföyü analiz et", type="primary"):
+        render_disclaimer()
+        return
+    positions = portfolio.copy()
+    positions["Sembol"] = positions["Sembol"].astype(str).str.upper().str.strip().str.replace(".IS", "", regex=False)
+    positions = positions[(positions["Sembol"] != "") & (positions["Adet"] > 0)]
+    if positions.empty:
+        st.warning("Analiz için en az bir sembol ve sıfırdan büyük adet girin.")
+        return
+    calculated = []
+    with st.spinner("Güncel fiyatlar alınıyor..."):
+        for _, position in positions.iterrows():
+            try:
+                data = fetch_stock(position["Sembol"])
+                current_price = float(data["history"]["Close"].iloc[-1])
+                value = current_price * float(position["Adet"])
+                cost = float(position["Ortalama Maliyet (TL)"]) * float(position["Adet"])
+                calculated.append({"Sembol": position["Sembol"], "Sektör": STOCKS.get(position["Sembol"], {}).get("sector", "Bilinmiyor"), "Güncel Değer": value, "Maliyet": cost, "Kâr/Zarar": value - cost})
+            except Exception as exc:
+                st.warning(f"{position['Sembol']} için güncel fiyat alınamadı: {exc}")
+    if not calculated:
+        st.error("Geçerli pozisyon için fiyat alınamadı.")
+        return
+    result = pd.DataFrame(calculated)
+    total_value = float(result["Güncel Değer"].sum())
+    result["Ağırlık (%)"] = result["Güncel Değer"] / total_value * 100
+    total_cost = float(result["Maliyet"].sum())
+    a, b, c = st.columns(3)
+    a.metric("Güncel portföy değeri", tr_number(total_value, " TL"))
+    b.metric("Toplam maliyet", tr_number(total_cost, " TL"))
+    c.metric("Hesaplanan kâr/zarar", tr_number(total_value - total_cost, " TL"))
+    st.subheader("Pozisyon dağılımı")
+    st.dataframe(result[["Sembol", "Sektör", "Güncel Değer", "Ağırlık (%)", "Kâr/Zarar"]], use_container_width=True, hide_index=True,
+                 column_config={"Güncel Değer": st.column_config.NumberColumn(format="%.2f TL"), "Ağırlık (%)": st.column_config.NumberColumn(format="%.1f%%"), "Kâr/Zarar": st.column_config.NumberColumn(format="%.2f TL")})
+    sector_weights = result.groupby("Sektör", as_index=False)["Güncel Değer"].sum()
+    sector_weights["Ağırlık (%)"] = sector_weights["Güncel Değer"] / total_value * 100
+    st.subheader("Sektör dağılımı")
+    st.bar_chart(sector_weights.set_index("Sektör")["Ağırlık (%)"])
+    largest_position = result.loc[result["Ağırlık (%)"].idxmax()]
+    if largest_position["Ağırlık (%)"] >= 35:
+        st.warning(f"Yoğunlaşma notu: {largest_position['Sembol']} portföyün %{largest_position['Ağırlık (%)']:.1f}'ini oluşturuyor.")
+    if len(sector_weights) == 1:
+        st.warning("Sektör çeşitliliği notu: portföy yalnızca tek sektörde yoğunlaşmış görünüyor.")
+    st.caption("Bu ekran pozisyon büyüklüklerini açıklar; varlık alım/satımı veya yeniden dengeleme önerisi vermez.")
+    render_disclaimer()
+
+
+if "page" not in st.session_state:
+    st.session_state.page = "Ana Sayfa"
+
+nav_items = [
+    ("🏠 Ana Sayfa", "Ana Sayfa"),
+    ("📊 Tek Hisse", "Tek Hisse Analizi"),
+    ("⚡ Günlük Fırsatlar", "Günlük Fırsatlar"),
+    ("🏛️ Uzun Vadeli", "Uzun Vadeli"),
+    ("💼 Portföy", "Portföy Asistanı"),
+]
+nav_columns = st.columns(len(nav_items))
+for column, (label, target) in zip(nav_columns, nav_items):
+    with column:
+        button_type = "primary" if st.session_state.page == target else "secondary"
+        if st.button(label, key=f"nav_{target}", use_container_width=True, type=button_type):
+            st.session_state.page = target
+            st.rerun()
+st.caption(f"BCBIST V2 · {len(STOCKS)} sembol · Veri odaklı analiz · Yatırım tavsiyesi değildir")
+st.divider()
+page = st.session_state.page
+
+if page == "Ana Sayfa":
+    render_home()
+elif page == "Tek Hisse Analizi":
+    render_stock_analysis()
+elif page == "Günlük Fırsatlar":
+    render_daily_opportunities()
+elif page == "Uzun Vadeli":
+    render_long_term()
+else:
+    render_portfolio_assistant()
