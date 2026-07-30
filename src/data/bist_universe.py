@@ -37,5 +37,36 @@ YBTAS YEOTK YESIL YGGYO YKBNK YKSLN YONGA YUNSA YYAPI ZEDUR ZOREN
 
 BIST_TICKERS = tuple(dict.fromkeys(_TICKERS.split()))
 
+# These lists are a local screening fallback, reviewed for the July 2026 index
+# period.  Constituents change quarterly, therefore symbols are always checked
+# with the market-data provider before an analysis is shown.
+_BIST_30 = """
+AEFES AKBNK ASELS ASTOR BIMAS CCOLA EREGL FROTO GARAN GUBRF ISCTR KCHOL
+KONTR KOZAL MGROS PETKM PGSUS SAHOL SISE TCELL THYAO TOASO TSKB TUPRS
+VAKBN YKBNK AKSEN ENKAI TAVHL TTKOM
+"""
+_BIST_100 = """
+AEFES AGHOL AKBNK AKCNS AKENR AKFGY AKGRT AKSA AKSEN ALARK ALBRK ALFAS
+ARCLK ASELS ASTOR BIMAS BRSAN BRYAT BTCIM CANTE CCOLA CEMTS CIMSA CWENE
+DOAS DOHOL EKGYO ENERY ENJSA ENKAI EREGL EUPWR FROTO GARAN GUBRF GWIND
+HALKB HEKTS ISCTR ISDMR ISFIN ISGYO ISMEN KCHOL KLGYO KONTR KOZAA KOZAL
+KRDMD MAVI MGROS MPARK OYAKC PETKM PGSUS SAHOL SASA SISE SOKM TAVHL
+TCELL THYAO TKFEN TKNSA TMSN TOASO TRGYO TSKB TTKOM TTRAK TUPRS TURSG
+ULKER VAKBN VESTL YKBNK ZOREN AEFES AGESA AKCNS AKMGY AKSEN ALFAS ANSGR
+ASTOR BIZIM BOBET BRISA CHTRC DOCO EGEEN EKGYO ENJSA EUPWR
+FENER FORTE GENIL GSDHO KARSN KAYSE KLSER KMPUR LOGO MIATK ODAS ORGE ALCTL AKFYE
+"""
+
+# Keep only symbols available in the application's validated universe. This
+# guards against index-list typos and gives every scope a predictable result.
+BIST_30_TICKERS = tuple(symbol for symbol in dict.fromkeys(_BIST_30.split()) if symbol in BIST_TICKERS)
+BIST_100_TICKERS = tuple(symbol for symbol in dict.fromkeys(_BIST_100.split()) if symbol in BIST_TICKERS)
+
+MARKET_SCOPES = {
+    "BIST 30": BIST_30_TICKERS,
+    "BIST 100": BIST_100_TICKERS,
+    "Tüm BIST": BIST_TICKERS,
+}
+
 if len(BIST_TICKERS) < 200:  # Defensive guard against accidental list truncation.
     raise RuntimeError("BIST tarama evreni en az 200 sembol içermelidir.")

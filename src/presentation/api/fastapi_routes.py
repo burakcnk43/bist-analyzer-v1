@@ -1,5 +1,7 @@
 # src/presentation/api/fastapi_routes.py
-from fastapi import FastAPI, HTTPException, Query
+import os
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -53,10 +55,11 @@ app = FastAPI(
     redoc_url="/api/redoc"
 )
 
+allowed_origins = [origin.strip() for origin in os.getenv("BCBIST_ALLOWED_ORIGINS", "http://localhost:8501,http://localhost:8502").split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -104,6 +107,17 @@ async def startup():
     logger.info("API servisleri başlatıldı")
 
 
+@app.on_event("shutdown")
+async def shutdown():
+    """Close HTTP sessions and background polling cleanly."""
+    if price_feed:
+        await price_feed.stop()
+    if pipeline:
+        await pipeline.close()
+    if kap_client:
+        await kap_client.__aexit__(None, None, None)
+
+
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check():
     """Sistem sağlık kontrolü"""
@@ -132,7 +146,11 @@ async def get_bist100():
 
 @app.post("/api/analyze", response_model=AnalysisResponse)
 async def analyze_stock(request: TickerRequest):
-    """Hisse için tam kapsamlı analiz"""
+    if os.getenv("BCBIST_ENABLE_LEGACY_API", "0") != "1":
+        raise HTTPException(
+            status_code=503,
+            detail="Legacy API analizi devre dışı. Sabit finansal değerlerle yanlış skor üretmemek için V2 dashboard kullanılmalıdır.",
+        )
     if not pipeline or not confidence_engine:
         raise HTTPException(status_code=503, detail="Servisler başlatılmadı")
     

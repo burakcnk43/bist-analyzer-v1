@@ -29,4 +29,4 @@ if not exist "venv\Scripts\streamlit.exe" (
 
 echo.
 echo V2 adresi: http://localhost:8502/bcbistv2
-venv\Scripts\python.exe -m streamlit run src\presentation\dashboard\v2_app.py --server.port 8502 --server.baseUrlPath bcbistv2
+venv\Scripts\python.exe -m streamlit run src\presentation\dashboard\app.py --server.port 8502 --server.baseUrlPath bcbistv2

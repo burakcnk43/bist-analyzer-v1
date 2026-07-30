@@ -22,6 +22,7 @@ class FastDataPipeline:
         self.technical = technical_repo
         self._hot_stocks: List[str] = []
         self._session: Optional[aiohttp.ClientSession] = None
+        self._refresh_task: Optional[asyncio.Task] = None
     
     async def _get_session(self):
         if self._session is None or self._session.closed:
@@ -33,7 +34,8 @@ class FastDataPipeline:
     
     async def start(self):
         """Veri boru hattını başlat"""
-        asyncio.create_task(self._periodic_full_update())
+        if self._refresh_task is None or self._refresh_task.done():
+            self._refresh_task = asyncio.create_task(self._periodic_full_update())
         logger.info("Hızlı veri boru hattı başlatıldı")
     
     async def get_stock_data(self, ticker: str, force_refresh: bool = False) -> Dict:
@@ -175,5 +177,11 @@ class FastDataPipeline:
                 logger.debug(f"Periyodik güncelleme: {len(hot)} hisse")
     
     async def close(self):
+        if self._refresh_task and not self._refresh_task.done():
+            self._refresh_task.cancel()
+            try:
+                await self._refresh_task
+            except asyncio.CancelledError:
+                pass
         if self._session and not self._session.closed:
             await self._session.close()

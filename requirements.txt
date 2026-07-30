@@ -1,6 +1,10 @@
-streamlit
-pandas
-numpy
-yfinance
-plotly
-requests
+streamlit>=1.36,<2
+pandas>=2.2,<3
+numpy>=1.26,<3
+yfinance>=0.2.40,<1
+plotly>=5.22,<7
+requests>=2.31,<3
+aiohttp>=3.9,<4
+fastapi>=0.110,<1
+uvicorn[standard]>=0.29,<1
+pydantic>=2.6,<3

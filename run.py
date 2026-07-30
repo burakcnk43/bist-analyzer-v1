@@ -67,5 +67,9 @@ async def main():
             d = data[ticker]
             print(f"  {ticker}: {d.get('current_price', 0):.2f} TL | RSI: {d.get('technicals', {}).get('rsi_14', 'N/A')}")
 
+    await price_feed.stop()
+    await pipeline.close()
+    await kap.__aexit__(None, None, None)
+
 if __name__ == "__main__":
     asyncio.run(main())

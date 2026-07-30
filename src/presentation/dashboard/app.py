@@ -20,7 +20,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.domain.services.market_analysis import calculate_technicals, score_opportunity
-from src.data.bist_universe import BIST_TICKERS
+from src.domain.services.investment_analysis import build_investment_analysis
+from src.data.bist_universe import BIST_TICKERS, MARKET_SCOPES
 
 
 st.set_page_config(page_title="BCBIST AI", page_icon="📈", layout="wide", initial_sidebar_state="expanded")
@@ -75,6 +76,14 @@ def compact_number(value: Any) -> str:
         if abs(value) >= threshold:
             return tr_number(value / threshold, symbol, 1)
     return tr_number(value, "", 0)
+
+
+def select_market_scope(label: str, key: str) -> tuple[str, ...]:
+    """Return a named index universe instead of a positional symbol slice."""
+    scope = st.selectbox(label, list(MARKET_SCOPES), key=key)
+    symbols = MARKET_SCOPES[scope]
+    st.caption(f"Tarama evreni: {scope} · {len(symbols)} sembol. Endeks üyeleri dönemsel olarak değişebilir.")
+    return symbols
 
 
 def latest_value(frame: pd.DataFrame, labels: list[str]) -> float | None:
@@ -132,6 +141,43 @@ def fetch_price_histories(symbols: tuple[str, ...]) -> dict[str, pd.DataFrame]:
     elif len(symbols) == 1:
         histories[symbols[0]] = downloaded.dropna(how="all")
     return histories
+
+
+def enrich_candidates(candidates: list[dict[str, Any]], limit: int = 10) -> list[dict[str, Any]]:
+    """Enrich only the preliminary leaders with statements and news.
+
+    The first pass remains a single batched price download; this bounded second
+    pass is the performance guard for BIST 100 and All BIST screens.
+    """
+    enriched: list[dict[str, Any]] = []
+    for candidate in candidates[:limit]:
+        try:
+            data = fetch_stock(candidate["Sembol"])
+            analysis = build_investment_analysis(data, calculate_technicals(data["history"]))
+            enriched.append({**candidate, "V2 Skor": analysis.total_score, "Öneri": analysis.recommendation, "Haber": analysis.news.sentiment, "Analiz": analysis})
+        except Exception:
+            continue
+    return sorted(enriched, key=lambda item: item["V2 Skor"], reverse=True)
+
+
+def render_v2_candidates(candidates: list[dict[str, Any]], title: str) -> None:
+    if not candidates:
+        return
+    st.subheader(title)
+    st.caption("Ön elemeden geçen adaylar; finansal, teknik, haber, momentum, değerleme ve risk verileriyle yeniden sıralandı.")
+    cards = st.columns(min(3, len(candidates)))
+    for column, item in zip(cards, candidates[:3]):
+        with column:
+            st.markdown(f"<div class='candidate'><div class='eyebrow'>BCBIST SCORE V2</div><h3>{item['Sembol']}</h3><b>{item['V2 Skor']}/100</b><br><span class='muted'>{item['Öneri']} · {item['Haber']}</span></div>", unsafe_allow_html=True)
+    table = pd.DataFrame([{key: item[key] for key in ("Sembol", "V2 Skor", "Öneri", "Haber", "Risk")} for item in candidates])
+    st.dataframe(table, hide_index=True, use_container_width=True)
+    for item in candidates:
+        analysis = item["Analiz"]
+        with st.expander(f"{item['Sembol']} · V2 skor {analysis.total_score}/100 · {analysis.recommendation}"):
+            st.write(analysis.thesis.attractive_because)
+            st.write(f"**Yatırım ufku:** {analysis.thesis.horizon} · **Yatırımcı profili:** {analysis.thesis.investor_profile}")
+            st.write("**Güçlü yanlar:** " + " ".join(analysis.thesis.strengths))
+            st.write("**Ana riskler:** " + " ".join(analysis.thesis.biggest_risks))
 
 
 def price_chart(history: pd.DataFrame, symbol: str) -> None:
@@ -268,7 +314,29 @@ def render_stock_analysis() -> None:
         else:
             st.info("Veri sağlayıcısı bu sembol için yeterli finansal tablo döndürmedi. Finansal yorum üretilmedi.")
         st.caption("Finansal dönemler şirket bazında farklılaşabilir. Karşılaştırma öncesinde dönem ve para birimini resmi finansal rapordan doğrulayın.")
+    analysis = build_investment_analysis(data, summary)
     with news_tab:
+        news_analysis = analysis.news
+        st.subheader("Haber etkisi analizi")
+        n1, n2, n3 = st.columns(3)
+        n1.metric("Haber etkisi", f"{news_analysis.score}/100")
+        n2.metric("Haber güveni", f"{news_analysis.confidence}/100")
+        n3.metric("Eğilim", news_analysis.sentiment)
+        st.write(news_analysis.summary)
+        st.write(f"Kısa vade: {news_analysis.short_term}")
+        st.write(f"Uzun vade: {news_analysis.long_term}")
+        positive_column, negative_column = st.columns(2)
+        with positive_column:
+            st.markdown("**Olumlu faktörler**")
+            for item in news_analysis.positive_factors or ["Belirgin olumlu başlık bulunmadı."]:
+                st.write("• " + item)
+        with negative_column:
+            st.markdown("**Olumsuz faktörler**")
+            for item in news_analysis.negative_factors or ["Belirgin olumsuz başlık bulunmadı."]:
+                st.write("• " + item)
+        with st.expander("Bu haber hisseyi neden etkileyebilir?"):
+            for reason in news_analysis.why_it_matters:
+                st.write("• " + reason)
         st.subheader("Sağlayıcının sunduğu güncel bağlantılar")
         news_items = data["news"]
         if not news_items:
@@ -284,6 +352,41 @@ def render_stock_analysis() -> None:
                 st.write(f"• {title} — {provider}")
         st.caption("Haber metinleri model tarafından yorumlanmaz; bağlantılar kaynak kontrolü için gösterilir.")
     with conclusion_tab:
+        st.subheader("Çok faktörlü V2 görünümü")
+        c1, c2 = st.columns(2)
+        c1.metric("Genel skor", f"{analysis.total_score}/100")
+        c2.metric("İzleme durumu", analysis.recommendation)
+        st.caption("Skor; finansal durum, teknik analiz, haber etkisi, momentum, risk, büyüme ve değerlemeyi birlikte değerlendirir.")
+        st.dataframe(pd.DataFrame([{"Kategori": name, "Skor": value} for name, value in analysis.categories.items()]), hide_index=True, use_container_width=True)
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Destekleyen veriler**")
+            for item in analysis.supporting_factors:
+                st.write("• " + item)
+        with right:
+            st.markdown("**Riskler**")
+            for item in analysis.risks:
+                st.write("• " + item)
+        st.markdown("**Hangi durumda görüş değişir?**")
+        for item in analysis.change_conditions:
+            st.write("• " + item)
+        st.subheader("Yatırım Tezi")
+        st.write(analysis.thesis.attractive_because)
+        t1, t2 = st.columns(2)
+        with t1:
+            st.markdown("**Ana güçlü yanlar**")
+            for item in analysis.thesis.strengths:
+                st.write("• " + item)
+            st.markdown("**Ana zayıflıklar**")
+            for item in analysis.thesis.weaknesses:
+                st.write("• " + item)
+        with t2:
+            st.markdown("**En büyük riskler**")
+            for item in analysis.thesis.biggest_risks:
+                st.write("• " + item)
+            st.markdown(f"**Uygun ufuk:** {analysis.thesis.horizon}")
+            st.markdown(f"**Yatırımcı profili:** {analysis.thesis.investor_profile}")
+        st.divider()
         score, reasons = score_opportunity(summary)
         st.subheader("Kural tabanlı teknik görünüm")
         st.write(f"İzleme puanı: **{score}/100**")
@@ -313,16 +416,14 @@ def risk_from_history(history: pd.DataFrame) -> str:
 def render_daily_opportunities() -> None:
     st.title("Günlük Fırsatlar")
     st.write("Bu sayfa bir öneri listesi değildir. Seçili sembollerde, açıkça tanımlanmış teknik kuralların güncel durumunu gösterir.")
-    scope_label = st.selectbox("Tarama kapsamı", ["Hızlı tarama · ilk 50 sembol", "Geniş tarama · ilk 150 sembol", f"Tam tarama · {len(STOCKS)} sembol"], index=0)
-    scope_size = 50 if scope_label.startswith("Hızlı") else 150 if scope_label.startswith("Geniş") else len(STOCKS)
-    st.caption(f"Tarama evreni: {scope_size} sembol. İlk taramada veri sağlayıcısı çağrıları nedeniyle uzun sürebilir; sonraki istekler önbellekten daha hızlı gelir.")
+    selected_symbols = select_market_scope("Tarama kapsamı", "daily_scope")
     if not st.button("Günlük taramayı çalıştır", type="primary"):
         st.info("Tarama başlatıldığında her sembolün fiyat verisi alınır ve aynı teknik kurallar uygulanır.")
         render_disclaimer()
         return
 
     rows: list[dict[str, Any]] = []
-    symbols = list(STOCKS)[:scope_size]
+    symbols = list(selected_symbols)
     with st.spinner(f"{len(symbols)} sembolün fiyat verisi tek seferde alınıyor..."):
         histories = fetch_price_histories(tuple(symbols))
     progress = st.progress(0, text="Teknik göstergeler hesaplanıyor...")
@@ -355,6 +456,8 @@ def render_daily_opportunities() -> None:
     if not valid_rows:
         st.error("Tarama için veri alınamadı. Lütfen daha sonra yeniden deneyin.")
         return
+    enriched_candidates = enrich_candidates(valid_rows, limit=10)
+    render_v2_candidates(enriched_candidates, "BCBIST Score V2 ile yeniden sıralanan adaylar")
     table = pd.DataFrame(valid_rows)[["Sembol", "Puan", "Risk", "Son Fiyat (TL)", "Trend"]]
     top_candidates = valid_rows[:3]
     if top_candidates:
@@ -404,29 +507,35 @@ def calculate_quality(data: dict[str, Any]) -> tuple[int, list[str]]:
 
 def render_long_term() -> None:
     st.title("Uzun Vadeli")
-    st.write("Buradaki görünüm, fiyat hareketinden ziyade erişilebilir finansal tablolardaki kârlılık, borçluluk ve nakit üretimine odaklanır.")
-    scope_label = st.selectbox("Finansal tarama kapsamı", ["Hızlı tarama · ilk 50 sembol", "Geniş tarama · ilk 150 sembol", f"Tam tarama · {len(STOCKS)} sembol"], index=0)
-    scope_size = 50 if scope_label.startswith("Hızlı") else 150 if scope_label.startswith("Geniş") else len(STOCKS)
+    st.write("Ön eleme hızlı teknik görünümle yapılır; yalnızca en güçlü adaylar finansal tablolar, haberler ve risk verisiyle BCBIST Score V2 üzerinden yeniden sıralanır.")
+    selected_symbols = select_market_scope("Finansal tarama kapsamı", "long_term_scope")
     if not st.button("Finansal kalite taramasını çalıştır", type="primary"):
         st.info("Tarama, aynı V2 sembol evreninin erişilebilir finansal tablolarını şeffaf kurallarla değerlendirir.")
         render_disclaimer()
         return
     rows: list[dict[str, Any]] = []
-    progress = st.progress(0, text="Finansal tablolar okunuyor...")
-    symbols = list(STOCKS)[:scope_size]
+    symbols = list(selected_symbols)
+    with st.spinner(f"{len(symbols)} sembol için ön eleme verisi alınıyor..."):
+        histories = fetch_price_histories(tuple(symbols))
+    progress = st.progress(0, text="Uzun vadeli adaylar seçiliyor...")
     for index, symbol in enumerate(symbols, start=1):
         try:
-            data = fetch_stock(symbol)
-            score, reasons = calculate_quality(data)
-            rows.append({"Sembol": symbol, "Sektör": STOCKS[symbol]["sector"], "Kalite puanı": score, "Kriterler": reasons})
+            history = histories.get(symbol)
+            if history is None or history.empty:
+                raise ValueError("Fiyat verisi alınamadı")
+            summary = calculate_technicals(history)
+            score, reasons = score_opportunity(summary)
+            rows.append({"Sembol": symbol, "Sektör": STOCKS[symbol]["sector"], "Kalite puanı": score, "Kriterler": reasons, "Risk": risk_from_history(history)})
         except Exception:
-            rows.append({"Sembol": symbol, "Sektör": STOCKS[symbol]["sector"], "Kalite puanı": None, "Kriterler": []})
+            rows.append({"Sembol": symbol, "Sektör": STOCKS[symbol]["sector"], "Kalite puanı": None, "Kriterler": [], "Risk": "Veri alınamadı"})
         progress.progress(index / len(symbols), text=f"{symbol} değerlendiriliyor ({index}/{len(symbols)})")
     progress.empty()
     valid_rows = sorted((row for row in rows if row["Kalite puanı"] is not None), key=lambda row: row["Kalite puanı"], reverse=True)
     if not valid_rows:
         st.error("Finansal tablolar alınamadı. Lütfen daha sonra yeniden deneyin.")
         return
+    enriched_candidates = enrich_candidates(valid_rows, limit=12)
+    render_v2_candidates(enriched_candidates, "Uzun vadeli BCBIST Score V2 adayları")
     st.dataframe(pd.DataFrame(valid_rows)[["Sembol", "Sektör", "Kalite puanı"]], use_container_width=True, hide_index=True)
     for row in valid_rows:
         with st.expander(f"{row['Sembol']} · finansal kalite puanı: {row['Kalite puanı']}/100"):
@@ -435,7 +544,7 @@ def render_long_term() -> None:
                     st.write("• " + criterion)
             else:
                 st.write("Veri mevcut olsa da tanımlı kalite kuralları karşılanmadı veya tablo kalemleri eşleşmedi.")
-    st.caption("Puan, yalnızca erişilebilir son dönem tablolarına dayanır; büyüme, yönetim kalitesi, değerleme ve gelecek beklentileri içermez.")
+    st.caption("Üst adaylar finansal durum, büyüme, değerleme, teknik görünüm, haber ve risk verileriyle yeniden sıralanır. Ön eleme skoru tek başına yatırım önerisi değildir.")
     render_disclaimer()
 
 

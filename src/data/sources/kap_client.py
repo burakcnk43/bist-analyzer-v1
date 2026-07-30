@@ -24,8 +24,8 @@ class KAPClient:
     BIST 100 listesi ve finansal tabloları çeker.
     """
     
-    def __init__(self, config: KAPConfig = KAPConfig()):
-        self.config = config
+    def __init__(self, config: Optional[KAPConfig] = None):
+        self.config = config or KAPConfig()
         self._session: Optional[aiohttp.ClientSession] = None
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._rate_limiter = asyncio.Semaphore(5)
@@ -51,6 +51,8 @@ class KAPClient:
     
     async def _rate_limited_request(self, url: str, params: Dict = None) -> Dict:
         """Rate limiting'li HTTP GET"""
+        if self._session is None or self._session.closed:
+            raise RuntimeError("KAPClient kullanılmadan önce başlatılmalıdır")
         async with self._rate_limiter:
             for attempt in range(self.config.max_retries):
                 try:
