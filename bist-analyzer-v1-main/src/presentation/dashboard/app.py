@@ -5,10 +5,14 @@
 
 from __future__ import annotations
 
+
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+import requests
+from bs4 import BeautifulSoup
 
 import pandas as pd
 import streamlit as st
@@ -20,11 +24,139 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.domain.services.market_analysis import calculate_technicals, score_opportunity
-from src.data.bist_universe import BIST_TICKERS
-
 
 st.set_page_config(page_title="BCBIST AI", page_icon="📈", layout="wide", initial_sidebar_state="expanded")
 
+from src.data.news import get_news
+
+from src.data.bist_universe import (
+    BIST30_TICKERS,
+    BIST100_TICKERS,
+    BIST_TICKERS,
+)
+def analyze_financial_quality(symbol: str) -> dict:
+    """
+    Uzun vadeli finansal kalite puanlama motoru.
+    0-100 arası puan üretir.
+    """
+
+    try:
+        ticker = yf.Ticker(f"{symbol}.IS")
+
+        financials = ticker.financials
+        balance = ticker.balance_sheet
+        cashflow = ticker.cashflow
+
+        score = 50
+        criteria = []
+
+
+        # -------------------------
+        # 1) KÂRLILIK
+        # -------------------------
+
+        try:
+            net_income = financials.loc["Net Income"].iloc[0]
+            revenue = financials.loc["Total Revenue"].iloc[0]
+
+            margin = net_income / revenue
+
+            if margin > 0.15:
+                score += 15
+                criteria.append("Güçlü net kâr marjı")
+            elif margin > 0:
+                score += 8
+                criteria.append("Pozitif net kâr")
+            else:
+                score -= 15
+                criteria.append("Negatif kârlılık")
+
+        except:
+            criteria.append("Kârlılık verisi alınamadı")
+
+
+        # -------------------------
+        # 2) BORÇLULUK
+        # -------------------------
+
+        try:
+            debt = balance.loc["Total Debt"].iloc[0]
+            equity = balance.loc["Stockholders Equity"].iloc[0]
+
+            debt_ratio = debt / equity
+
+            if debt_ratio < 0.5:
+                score += 15
+                criteria.append("Düşük borçluluk")
+            elif debt_ratio < 1.5:
+                score += 5
+                criteria.append("Kontrollü borç seviyesi")
+            else:
+                score -= 10
+                criteria.append("Yüksek borçluluk")
+
+        except:
+            criteria.append("Borç verisi alınamadı")
+
+
+        # -------------------------
+        # 3) GELİR BÜYÜMESİ
+        # -------------------------
+
+        try:
+            revenue_now = financials.loc["Total Revenue"].iloc[0]
+            revenue_old = financials.loc["Total Revenue"].iloc[-1]
+
+            growth = (revenue_now - revenue_old) / abs(revenue_old)
+
+            if growth > 0.20:
+                score += 10
+                criteria.append("Güçlü gelir büyümesi")
+            elif growth > 0:
+                score += 5
+                criteria.append("Pozitif gelir büyümesi")
+            else:
+                score -= 5
+                criteria.append("Gelir büyümesi zayıf")
+
+        except:
+            criteria.append("Büyüme verisi alınamadı")
+
+
+        # -------------------------
+        # 4) NAKİT AKIŞI
+        # -------------------------
+
+        try:
+            cash = cashflow.loc["Operating Cash Flow"].iloc[0]
+
+            if cash > 0:
+                score += 10
+                criteria.append("Pozitif operasyonel nakit akışı")
+            else:
+                score -= 10
+                criteria.append("Negatif nakit akışı")
+
+        except:
+            criteria.append("Nakit akışı verisi alınamadı")
+
+
+        # sınırlandırma
+        score = max(0, min(score, 100))
+
+
+        return {
+            "score": score,
+            "criteria": criteria
+        }
+
+
+    except Exception as e:
+
+        return {
+            "score": None,
+            "criteria": [str(e)]
+        }
 KNOWN_STOCKS = {
     "ASELS": {"name": "Aselsan Elektronik Sanayi ve Ticaret A.Ş.", "sector": "Savunma"},
     "THYAO": {"name": "Türk Hava Yolları A.O.", "sector": "Ulaştırma"},
@@ -313,16 +445,42 @@ def risk_from_history(history: pd.DataFrame) -> str:
 def render_daily_opportunities() -> None:
     st.title("Günlük Fırsatlar")
     st.write("Bu sayfa bir öneri listesi değildir. Seçili sembollerde, açıkça tanımlanmış teknik kuralların güncel durumunu gösterir.")
-    scope_label = st.selectbox("Tarama kapsamı", ["Hızlı tarama · ilk 50 sembol", "Geniş tarama · ilk 150 sembol", f"Tam tarama · {len(STOCKS)} sembol"], index=0)
-    scope_size = 50 if scope_label.startswith("Hızlı") else 150 if scope_label.startswith("Geniş") else len(STOCKS)
-    st.caption(f"Tarama evreni: {scope_size} sembol. İlk taramada veri sağlayıcısı çağrıları nedeniyle uzun sürebilir; sonraki istekler önbellekten daha hızlı gelir.")
-    if not st.button("Günlük taramayı çalıştır", type="primary"):
-        st.info("Tarama başlatıldığında her sembolün fiyat verisi alınır ve aynı teknik kurallar uygulanır.")
-        render_disclaimer()
-        return
+    scope = st.selectbox(
+    "Tarama Evreni",
+    [
+        "BIST 30",
+        "BIST 100",
+        "Tüm BIST"
+    ],
+    index=1
+)
 
+    from src.data.bist_universe import (
+                BIST30_TICKERS,
+                BIST100_TICKERS,
+                BIST_TICKERS,
+    )
+
+    if scope == "BIST 30":
+        symbols = list(BIST30_TICKERS)
+    elif scope == "BIST 100":
+        symbols = list(BIST100_TICKERS)
+    else:
+        symbols = list(BIST_TICKERS)
+
+        st.caption(f"Toplam {len(symbols)} hisse taranacak.")
+
+        if not st.button("🔍 Günlük Taramayı Başlat", type="primary", use_container_width=True):
+            st.info("Tarama başlatıldığında her sembolün fiyat verisi alınır ve aynı teknik kurallar uygulanır.")
+            render_disclaimer()
+            return
     rows: list[dict[str, Any]] = []
-    symbols = list(STOCKS)[:scope_size]
+    if scope == "BIST 30":
+        symbols = list(BIST30_TICKERS)
+    elif scope == "BIST 100":
+        symbols = list(BIST100_TICKERS)
+    else:
+        symbols = list(BIST_TICKERS)
     with st.spinner(f"{len(symbols)} sembolün fiyat verisi tek seferde alınıyor..."):
         histories = fetch_price_histories(tuple(symbols))
     progress = st.progress(0, text="Teknik göstergeler hesaplanıyor...")
@@ -363,6 +521,19 @@ def render_daily_opportunities() -> None:
         for column, candidate in zip(candidate_columns, top_candidates):
             with column:
                 st.markdown(f"<div class='candidate'><div class='eyebrow'>İZLEME ADAYI</div><h3>{candidate['Sembol']}</h3><b>{candidate['Puan']}/100</b> teknik puan<br><span class='muted'>Risk: {candidate['Risk']}</span></div>", unsafe_allow_html=True)
+    top_candidates = valid_rows[:5]
+
+    if top_candidates:
+        st.subheader("🏆 En Güçlü Finansal Şirketler")
+
+        cols = st.columns(len(top_candidates))
+
+        for col, company in zip(cols, top_candidates):
+            with col:
+                st.metric(
+                    company["Sembol"],
+                    f"{company['Puan']}/100"
+            )
     st.dataframe(table, use_container_width=True, hide_index=True, column_config={"Son Fiyat (TL)": st.column_config.NumberColumn(format="%.2f TL")})
     st.subheader("Adayların hesaplama gerekçesi")
     for row in valid_rows:
@@ -400,43 +571,177 @@ def calculate_quality(data: dict[str, Any]) -> tuple[int, list[str]]:
         score += 25
         reasons.append("Borç / öz kaynak oranı 1'in altında.")
     return score, reasons
+POSITIVE = [
+    "yatırım",
+    "anlaşma",
+    "ihale",
+    "kar",
+    "kâr",
+    "büyüme",
+    "ihracat",
+    "kapasite",
+    "satın alma",
+    "temettü",
+    "rekor",
+]
 
+NEGATIVE = [
+    "zarar",
+    "ceza",
+    "dava",
+    "iflas",
+    "bedelli",
+    "borç",
+    "düşüş",
+    "iptal",
+    "soruşturma",
+    "kayıp",
+]
+
+
+def calculate_news_score(symbol):
+
+    news = get_news(symbol)
+
+    score = 0
+
+    reasons = []
+
+    for item in news:
+
+        title = item["title"].lower()
+
+        for word in POSITIVE:
+
+            if word in title:
+
+                score += 2
+
+                reasons.append("🟢 " + item["title"])
+
+                break
+
+        for word in NEGATIVE:
+
+            if word in title:
+
+                score -= 2
+
+                reasons.append("🔴 " + item["title"])
+
+                break
+
+    score = max(-10, min(10, score))
+
+    return score, reasons
 
 def render_long_term() -> None:
-    st.title("Uzun Vadeli")
-    st.write("Buradaki görünüm, fiyat hareketinden ziyade erişilebilir finansal tablolardaki kârlılık, borçluluk ve nakit üretimine odaklanır.")
-    scope_label = st.selectbox("Finansal tarama kapsamı", ["Hızlı tarama · ilk 50 sembol", "Geniş tarama · ilk 150 sembol", f"Tam tarama · {len(STOCKS)} sembol"], index=0)
-    scope_size = 50 if scope_label.startswith("Hızlı") else 150 if scope_label.startswith("Geniş") else len(STOCKS)
-    if not st.button("Finansal kalite taramasını çalıştır", type="primary"):
-        st.info("Tarama, aynı V2 sembol evreninin erişilebilir finansal tablolarını şeffaf kurallarla değerlendirir.")
+    st.title("🏛️ Uzun Vadeli")
+
+    st.write(
+        "Bu ekran, şirketlerin finansal tablolarını temel alarak uzun vadeli kalite puanı oluşturur."
+    )
+
+    scope = st.selectbox(
+        "Tarama Evreni",
+        [
+            "BIST 30",
+            "BIST 100",
+            "Tüm BIST"
+        ],
+        index=1,
+        key="long_term_scope"
+    )
+
+    from src.data.bist_universe import (
+        BIST30_TICKERS,
+        BIST100_TICKERS,
+        BIST_TICKERS,
+    )
+
+    if scope == "BIST 30":
+        symbols = list(BIST30_TICKERS)
+    elif scope == "BIST 100":
+        symbols = list(BIST100_TICKERS)
+    else:
+        symbols = list(BIST_TICKERS)
+
+    st.caption(f"Toplam {len(symbols)} şirket analiz edilecek.")
+
+    if not st.button(
+        "🏛️ Finansal Taramayı Başlat",
+        type="primary",
+        use_container_width=True,
+    ):
+        st.info(
+            "Tarama; şirketlerin finansal tabloları, borçluluk, kârlılık ve nakit akışı kriterlerini değerlendirir."
+        )
         render_disclaimer()
         return
-    rows: list[dict[str, Any]] = []
-    progress = st.progress(0, text="Finansal tablolar okunuyor...")
-    symbols = list(STOCKS)[:scope_size]
-    for index, symbol in enumerate(symbols, start=1):
-        try:
-            data = fetch_stock(symbol)
-            score, reasons = calculate_quality(data)
-            rows.append({"Sembol": symbol, "Sektör": STOCKS[symbol]["sector"], "Kalite puanı": score, "Kriterler": reasons})
-        except Exception:
-            rows.append({"Sembol": symbol, "Sektör": STOCKS[symbol]["sector"], "Kalite puanı": None, "Kriterler": []})
-        progress.progress(index / len(symbols), text=f"{symbol} değerlendiriliyor ({index}/{len(symbols)})")
-    progress.empty()
-    valid_rows = sorted((row for row in rows if row["Kalite puanı"] is not None), key=lambda row: row["Kalite puanı"], reverse=True)
+
+    rows = []
+
+    with st.spinner("Finansal veriler taranıyor..."):
+        for symbol in symbols:
+            try:
+                result = analyze_financial_quality(symbol)
+
+                rows.append({
+                    "Sembol": symbol,
+                    "Sektör": STOCKS.get(symbol, {}).get("sector", "Bilinmiyor"),
+                    "Kalite puanı":  result["score"],
+                    "Kriterler": result["criteria"],
+                })
+
+            except Exception as exc:
+                rows.append({
+                    "Sembol": symbol,
+                    "Sektör": STOCKS.get(symbol, {}).get("sector", "Bilinmiyor"),
+                    "Kalite puanı": None,
+                    "Kriterler": [str(exc)],
+                })
+
+    valid_rows = [
+        row for row in rows
+        if row["Kalite puanı"] is not None
+    ]
+
+    valid_rows.sort(
+        key=lambda x: x["Kalite puanı"],
+        reverse=True
+    )
+
     if not valid_rows:
-        st.error("Finansal tablolar alınamadı. Lütfen daha sonra yeniden deneyin.")
+        st.warning("Finansal veri bulunamadı.")
+        render_disclaimer()
         return
-    st.dataframe(pd.DataFrame(valid_rows)[["Sembol", "Sektör", "Kalite puanı"]], use_container_width=True, hide_index=True)
+
+
+    st.dataframe(
+        pd.DataFrame(valid_rows)[
+            ["Sembol", "Sektör", "Kalite puanı"]
+        ],
+        use_container_width=True,
+        hide_index=True
+    )
+
+
     for row in valid_rows:
-        with st.expander(f"{row['Sembol']} · finansal kalite puanı: {row['Kalite puanı']}/100"):
+        with st.expander(
+            f"{row['Sembol']} · finansal kalite puanı: {row['Kalite puanı']}/100"
+        ):
+
             if row["Kriterler"]:
                 for criterion in row["Kriterler"]:
                     st.write("• " + criterion)
             else:
-                st.write("Veri mevcut olsa da tanımlı kalite kuralları karşılanmadı veya tablo kalemleri eşleşmedi.")
-    st.caption("Puan, yalnızca erişilebilir son dönem tablolarına dayanır; büyüme, yönetim kalitesi, değerleme ve gelecek beklentileri içermez.")
-    render_disclaimer()
+                st.write(
+                "Veri mevcut olsa da tanımlı kalite kuralları karşılanmadı veya tablo kalemleri eşleşmedi."
+                )
+
+          
+st.caption("Puan, yalnızca erişilebilir son dönem tablolarına dayanır; büyüme, yönetim kalitesi, değerleme ve gelecek beklentileri içermez.")
+render_disclaimer()
 
 
 def render_portfolio_assistant() -> None:

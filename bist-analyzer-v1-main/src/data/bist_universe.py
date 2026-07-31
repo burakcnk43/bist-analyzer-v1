@@ -39,3 +39,24 @@ BIST_TICKERS = tuple(dict.fromkeys(_TICKERS.split()))
 
 if len(BIST_TICKERS) < 200:  # Defensive guard against accidental list truncation.
     raise RuntimeError("BIST tarama evreni en az 200 sembol içermelidir.")
+# BIST 30
+BIST30_TICKERS = (
+    "AKBNK","ALARK","ASELS","ASTOR","BIMAS","EKGYO","ENKAI","EREGL",
+    "FROTO","GARAN","GUBRF","HEKTS","ISCTR","KCHOL","KOZAL","KRDMD",
+    "ODAS","OYAKC","PETKM","PGSUS","SAHOL","SASA","SISE","TCELL",
+    "THYAO","TOASO","TSKB","TUPRS","YKBNK","MGROS"
+)
+
+# BIST 100
+BIST100_TICKERS = tuple(dict.fromkeys([
+    *BIST30_TICKERS,
+    "AEFES","AGHOL","AHGAZ","AKSA","AKSEN","ALFAS","ARCLK","ARDYZ",
+    "BERA","BRISA","BUCIM","CCOLA","CIMSA","CWENE","DOAS","DOHOL",
+    "EGEEN","ENERY","ENJSA","EUHOL","EUPWR","GLYHO","GWIND",
+    "HALKB","ISDMR","ISMEN","KONTR","LOGO","MAVI","MIATK","MPARK",
+    "OTKAR","PASEU","QUAGR","SELEC","SMRTG","SOKM",
+    "TAVHL","TKFEN","TTKOM","ULKER","VAKBN","VESTL","YEOTK",
+    "ZOREN","KARSN","KLSER","KMPUR","KONYA","MACKO","MAGEN","MEDTR",
+    "ORGE","PENTA","RALYH","SDTTR","SKBNK","TATEN","TATGD","TRILC",
+    "ULUSE","VBTYZ","YATAS","YUNSA"
+]))
