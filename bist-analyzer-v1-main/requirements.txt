@@ -5,3 +5,5 @@ yfinance
 plotly
 requests
 feedparser
+beautifulsoup4
+lxml
