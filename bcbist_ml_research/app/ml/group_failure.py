@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 import logging
+import joblib
+from pathlib import Path
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -96,7 +98,7 @@ class GroupOutcomePredictorV2:
         Trains models for each threshold.
         """
         self.feature_cols = [c for c in X.columns if not c.startswith('failed_') and c != 'hit_count']
-        X_clean = X[self.feature_cols].fillna(0)
+        X_clean = X[self.feature_cols].replace([np.inf, -np.inf], np.nan).fillna(0)
 
         logger.info(f"Training GroupOutcomePredictorV2 on {len(X)} days...")
         for k, model in self.models.items():
@@ -113,7 +115,7 @@ class GroupOutcomePredictorV2:
         if not self.feature_cols:
             return {k: 0.5 for k in [1, 2, 3, 4, 5]}
 
-        X = group_X[self.feature_cols].fillna(0)
+        X = group_X[self.feature_cols].replace([np.inf, -np.inf], np.nan).fillna(0)
         probs = {}
         for k, model in self.models.items():
             try:
@@ -121,3 +123,18 @@ class GroupOutcomePredictorV2:
             except:
                 probs[k] = 0.0 # If not trained
         return probs
+
+    def save(self, path: Path):
+        joblib.dump({
+            'models': self.models,
+            'feature_cols': self.feature_cols
+        }, path)
+        logger.info(f"GroupOutcomePredictorV2 saved to {path}")
+
+    @classmethod
+    def load(cls, path: Path):
+        data = joblib.load(path)
+        obj = cls()
+        obj.models = data['models']
+        obj.feature_cols = data['feature_cols']
+        return obj

@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 import logging
+import joblib
+from pathlib import Path
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,9 @@ class AdaptiveMetaLearnerV4:
         features = {}
         for name, history in self.specialist_history.items():
             df = pd.DataFrame(history)
+            if df.empty:
+                for w in self.windows: features[f'rel_{name}_{w}d'] = 0.5
+                continue
             recent = df[df['date'] < current_date]
             for w in self.windows:
                 if len(recent) >= w:
@@ -70,7 +75,6 @@ class AdaptiveMetaLearnerV4:
 class AdaptiveMetaLearnerV5(AdaptiveMetaLearnerV4):
     """
     Advanced Meta-Learner with Contextual Reliability and Exponential Decay.
-    Learns 'Expert-Regime' mapping: which specialist to trust in which transition state.
     """
     def __init__(self, windows=[10, 20, 60, 120], decay_factor=0.98):
         super().__init__(windows)
@@ -101,3 +105,19 @@ class AdaptiveMetaLearnerV5(AdaptiveMetaLearnerV4):
         self.model = xgb.XGBRegressor(n_estimators=200, max_depth=4, learning_rate=0.03)
         self.model.fit(X, y_success)
         self.is_trained = True
+
+    def save_state(self, path: Path):
+        joblib.dump({
+            'history': self.specialist_history,
+            'model': self.model,
+            'feature_cols': self.feature_cols,
+            'is_trained': self.is_trained
+        }, path)
+
+    def load_state(self, path: Path):
+        if path.exists():
+            data = joblib.load(path)
+            self.specialist_history = data.get('history', {})
+            self.model = data.get('model')
+            self.feature_cols = data.get('feature_cols', [])
+            self.is_trained = data.get('is_trained', False)

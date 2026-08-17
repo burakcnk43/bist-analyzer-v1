@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 import logging
+import joblib
+from pathlib import Path
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -9,7 +11,6 @@ logger = logging.getLogger(__name__)
 class EventChainExpert:
     """
     Models the causal chain: Event -> Sector Response -> Stock Relative Strength.
-    Tracks 'Impulse Response' for specific KAP event types.
     """
     def __init__(self):
         self.model = xgb.XGBClassifier(
@@ -20,42 +21,26 @@ class EventChainExpert:
         )
         self.feature_cols = []
 
-    def prepare_event_features(self,
-                               symbol_df: pd.DataFrame,
-                               event_df: pd.DataFrame,
-                               market_row: pd.Series) -> pd.DataFrame:
-        """
-        Features:
-        - Event Direction (KAP sentiment)
-        - Time since last event
-        - Sector momentum post-event
-        - Symbol relative strength acceleration
-        """
-        df = pd.DataFrame(index=symbol_df.index)
-
-        # Merge event flags
-        df = df.join(event_df[['event_direction', 'event_importance', 'time_since_event']], how='left')
-
-        # Sector Context
-        df['sector_mom_5d'] = symbol_df['sector_mean_return_5d']
-
-        # Interaction: Event x Market Regime
-        regime_map = {"BEAR": -1, "CRASH": -2, "SIDEWAYS": 0, "BULL": 1}
-        df['regime_val'] = regime_map.get(market_row.get('regime', 'NORMAL'), 0)
-
-        # Impulse Response: High volume post-event?
-        df['event_vol_spike'] = (symbol_df['relative_volume'] > 1.5).astype(int) * (df['time_since_event'] < 2).astype(int)
-
-        return df.fillna(0)
-
     def train(self, X: pd.DataFrame, y_success: pd.Series):
-        self.feature_cols = X.columns.tolist()
-        logger.info(f"Training EventChainExpert on {len(X)} instances...")
-        self.model.fit(X, y_success.astype(int))
+        # Automatically exclude non-numeric columns
+        self.feature_cols = [c for c in X.columns if pd.api.types.is_numeric_dtype(X[c]) and c not in ['symbol', 'date', 'target']]
+        X_clean = X[self.feature_cols].replace([np.inf, -np.inf], np.nan).fillna(0)
+        logger.info(f"Training EventChainExpert on {len(X_clean)} instances with {len(self.feature_cols)} features...")
+        self.model.fit(X_clean, y_success.astype(int))
 
     def predict_event_impulse(self, X: pd.DataFrame) -> np.ndarray:
         if not self.feature_cols:
             return np.full(len(X), 0.5)
-
-        X_clean = X[self.feature_cols].fillna(0)
+        X_clean = X.reindex(columns=self.feature_cols, fill_value=0).replace([np.inf, -np.inf], np.nan).fillna(0)
         return self.model.predict_proba(X_clean)[:, 1]
+
+    def save(self, path: Path):
+        joblib.dump({'model': self.model, 'feature_cols': self.feature_cols}, path)
+
+    @classmethod
+    def load(cls, path: Path):
+        data = joblib.load(path)
+        obj = cls()
+        obj.model = data['model']
+        obj.feature_cols = data['feature_cols']
+        return obj

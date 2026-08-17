@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 import logging
+import joblib
+from pathlib import Path
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -77,3 +79,20 @@ class RegimeTransitionExpert:
 
         X = self.prepare_transition_features(market_row)
         return float(self.model.predict_proba(X)[:, 1][0])
+
+    def save(self, path: Path):
+        joblib.dump({
+            'model': self.model,
+            'feature_cols': self.feature_cols,
+            'is_trained': self.is_trained
+        }, path)
+        logger.info(f"RegimeTransitionExpert saved to {path}")
+
+    @classmethod
+    def load(cls, path: Path):
+        data = joblib.load(path)
+        obj = cls()
+        obj.model = data['model']
+        obj.feature_cols = data['feature_cols']
+        obj.is_trained = data['is_trained']
+        return obj

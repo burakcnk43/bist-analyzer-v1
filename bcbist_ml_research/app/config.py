@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -8,7 +9,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Database & Storage
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./research.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./production_state.db")
 DATA_RAW_DIR = BASE_DIR / "data" / "raw"
 DATA_PROCESSED_DIR = BASE_DIR / "data" / "processed"
 DATA_FEATURES_DIR = BASE_DIR / "data" / "features"
@@ -21,7 +22,6 @@ for d in [DATA_RAW_DIR, DATA_PROCESSED_DIR, DATA_FEATURES_DIR, DATA_LABELS_DIR, 
     d.mkdir(parents=True, exist_ok=True)
 
 # Universe Loading
-# PHASE 7: FULL BIST UNIVERSE
 VALID_PATH = DATA_RAW_DIR / "bist_universe_valid.csv"
 UNIVERSE_PATH = DATA_RAW_DIR / "bist_universe.csv"
 
@@ -37,11 +37,12 @@ def load_universe():
 
 STOCK_UNIVERSE = load_universe()
 
-# Research Config
+# Production Config
 RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))
 PREDICTION_HORIZONS = [1, 3, 5, 10, 20]
 TRAIN_TEST_SPLIT_DATE = os.getenv("TRAIN_TEST_SPLIT_DATE", "2024-01-01")
 
-# API Keys (Placeholders)
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
+# API Configuration
+PORT = int(os.getenv("PORT", 8000))
 MARKET_DATA_PROVIDER = os.getenv("MARKET_DATA_PROVIDER", "yfinance")
+BREADTH_DATA_PATH = BASE_DIR / "data" / "market_breadth.csv"

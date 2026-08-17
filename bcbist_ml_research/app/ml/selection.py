@@ -56,7 +56,11 @@ class Top5CombinationOptimizer:
         scored['joint_prob'] = scored['production_alpha']
 
         # 3. Dependency-Aware Utility Selection (V5)
-        pool = scored.sort_values('joint_prob', ascending=False).head(25)
+        # Ensure no duplicates and unique symbol selection
+        scored = scored.sort_values('joint_prob', ascending=False)
+        scored = scored.drop_duplicates(subset=['symbol_col'])
+
+        pool = scored.head(25)
         temp_candidates = pool.to_dict('records')
 
         selected_indices = []

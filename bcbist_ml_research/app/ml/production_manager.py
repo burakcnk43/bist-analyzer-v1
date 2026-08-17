@@ -11,6 +11,10 @@ from app.ml.production_scorer import ProductionScorer
 from app.ml.selection import Top5CombinationOptimizer
 from app.ml.adaptive_meta import AdaptiveMetaLearnerV5
 from app.ml.transition_expert import RegimeTransitionExpert
+from app.ml.group_failure import GroupOutcomePredictorV2
+from app.ml.meta_labeler import AlphaTrustModel
+from app.ml.box_conditional import DarvasQualityScorer
+from app.ml.event_chains import EventChainExpert
 from app.ml.monitoring import DriftGuardV2
 from app.ml.market_quality import HighQualityMarketDayPredictor
 from app.ml.adaptive_k import AdaptiveTopKSelectorV2
@@ -30,11 +34,21 @@ class ProductionManager:
 
         self.scorer = ProductionScorer(MODELS_DIR)
         self.optimizer = Top5CombinationOptimizer()
+        prod_models_dir = MODELS_DIR / "production"
+
         self.meta_learner = AdaptiveMetaLearnerV5(
             windows=self.config['meta_learning']['windows'],
             decay_factor=self.config['meta_learning']['decay_factor']
         )
-        self.transition_expert = RegimeTransitionExpert()
+        self.meta_learner.load_state(prod_models_dir / "meta_learner_state.joblib")
+
+        # Load Experts
+        self.transition_expert = RegimeTransitionExpert.load(prod_models_dir / "transition_expert.joblib") if (prod_models_dir / "transition_expert.joblib").exists() else RegimeTransitionExpert()
+        self.group_predictor = GroupOutcomePredictorV2.load(prod_models_dir / "group_outcome_v2.joblib") if (prod_models_dir / "group_outcome_v2.joblib").exists() else GroupOutcomePredictorV2()
+        self.trust_model = AlphaTrustModel.load(prod_models_dir / "alpha_trust.joblib") if (prod_models_dir / "alpha_trust.joblib").exists() else AlphaTrustModel()
+        self.darvas_scorer = DarvasQualityScorer.load(prod_models_dir / "darvas_quality.joblib") if (prod_models_dir / "darvas_quality.joblib").exists() else DarvasQualityScorer()
+        self.event_expert = EventChainExpert.load(prod_models_dir / "event_chain.joblib") if (prod_models_dir / "event_chain.joblib").exists() else EventChainExpert()
+
         self.drift_guard = DriftGuardV2(threshold=self.config['risk']['max_drift_psi'])
         self.quality_predictor = HighQualityMarketDayPredictor()
         self.k_selector = AdaptiveTopKSelectorV2()
@@ -55,25 +69,37 @@ class ProductionManager:
         mkt_quality = self.quality_predictor.calculate_quality_score(market_data.iloc[-1], regime)
         drift_score = self.drift_guard.get_global_drift_score(day_data)
 
-        # 2. Adaptive Weighting
-        rel_feats = self.meta_learner.get_contextual_reliability(current_date, regime)
-        # Apply reliability adjustment to base scores
-        trust_coeff = rel_feats.get('rel_general_20d', 0.5) / 0.5
-
-        # 3. Expert Scoring
+        # 2. Expert Scoring & Meta-Adjustments
         scores_df = self.scorer.calculate_production_scores(day_data, {'regime': regime})
         day_scored = day_data.join(scores_df)
+
+        # Specialist Multipliers
+        p_trust = self.trust_model.predict_trust_score(day_scored)
+        p_darvas = self.darvas_scorer.predict_success_prob(day_scored)
+        p_event = self.event_expert.predict_event_impulse(day_scored)
+
+        # Weighted Ensemble for Production Alpha
+        day_scored['production_alpha'] = (
+            0.4 * day_scored['production_alpha'] +
+            0.2 * p_trust +
+            0.2 * p_darvas +
+            0.2 * p_event
+        ).clip(0, 1)
+
+        # Adaptive Reliability adjustment
+        rel_feats = self.meta_learner.get_contextual_reliability(current_date, regime)
+        trust_coeff = rel_feats.get('rel_general_20d', 0.5) / 0.5
         day_scored['production_alpha'] = (day_scored['production_alpha'] * trust_coeff).clip(0, 1)
 
-        # 4. Utility-Based K Selection
-        # (Using a simplified hit distribution for the live selector)
-        hit_dist = {1: 0.8, 3: 0.4, 5: 0.2} # This should ideally come from GroupOutcomePredictorV2
+        # 3. Utility-Based K Selection
+        group_X = self.group_predictor.prepare_group_features(market_data.iloc[-1], day_scored)
+        hit_dist = self.group_predictor.predict_hit_distribution(group_X)
         k = self.k_selector.determine_optimal_k(hit_dist, mkt_quality)
 
         if k == 0:
             return self._format_abstain_response(current_date, regime, mkt_quality, drift_score)
 
-        # 5. V5 Portfolio Optimization
+        # 4. V5 Portfolio Optimization
         picks = self.optimizer.select_optimal_set(
             day_scored, k=k,
             regime=regime,

@@ -24,10 +24,15 @@ The BCBIST Decision Engine is now productionized using the **Phase 22 Champion**
 ## 4. Deployment Instructions (Railway)
 
 ### Required Environment Variables
-- `DATABASE_URL`: URL for the research database.
+- `DATABASE_URL`: URL for the research database (Recommend using Railway Postgres for persistence).
 - `PORT`: Port provided by Railway (Default 8000).
 - `RANDOM_SEED`: 42 (Standard).
 - `MARKET_DATA_PROVIDER`: yfinance.
+
+### Persistence Note
+The `AdaptiveMetaLearnerV5` stores its reliability state in `models/production/meta_learner_state.joblib`. On Railway, this file will be lost on restart unless a **Railway Volume** is mounted at `/app/models/production/`. 
+
+Alternatively, for full production, this state should be moved to the `DATABASE_URL` (Postgres).
 
 ### Deployment Steps
 1. Push the final code to the main branch.

@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+*.log
+.cache/
+.pytest_cache/
+.mypy_cache/
+.idea/
+
+# Large Files
+data/reports/PHASE9_PREDICTION_AUDIT.csv
+data/features/
+data/raw/*.csv
+!data/raw/bist_universe_valid.csv
+!data/raw/kap_events.csv
+
+# Models (Keep production artifacts, ignore others if necessary)
+# models/*.joblib
+!models/production/
+
+# Research Artifacts
+.artifacts/
