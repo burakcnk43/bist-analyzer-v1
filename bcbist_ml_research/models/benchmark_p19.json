@@ -1,0 +1,11 @@
+{
+    "phase": 19,
+    "objective": "Top5_3PLUS",
+    "cpcv_baseline": 0.5112,
+    "recent_validation_3plus_uncond": 0.8873,
+    "recent_validation_3plus_cond": 0.9130,
+    "coverage": 0.9718,
+    "avg_k": 4.8,
+    "avg_5d_return": 0.0642,
+    "timestamp": "2026-08-15T11:54:00"
+}

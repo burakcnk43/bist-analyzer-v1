@@ -1,0 +1,13 @@
+Horizon,Config,Avg_Accuracy,Target
+1,Technical Only,0.4932294285235462,Classification
+1,Tech + Vol,0.5008186961173687,Classification
+1,Tech + Vol + Sector,0.4977678046262117,Classification
+1,FULL MODEL,0.5033278091353312,Classification
+5,Technical Only,0.5047301826713592,Classification
+5,Tech + Vol,0.5029106594372081,Classification
+5,Tech + Vol + Sector,0.4921935376028297,Classification
+5,FULL MODEL,0.46598784447235775,Classification
+20,Technical Only,0.47824074074074074,Classification
+20,Tech + Vol,0.4933581513780629,Classification
+20,Tech + Vol + Sector,0.49806717378620036,Classification
+20,FULL MODEL,0.4928955666787525,Classification

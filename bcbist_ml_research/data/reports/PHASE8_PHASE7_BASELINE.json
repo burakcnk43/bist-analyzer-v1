@@ -1,0 +1,14 @@
+{
+    "phase": 7,
+    "universe": "FULL BIST (495 symbols)",
+    "model_type": "xgboost",
+    "ensemble_weights": {"w_cls": 0.3, "w_rnk": 0.7},
+    "n_top_features": 30,
+    "target_horizon": "5d",
+    "reported_metrics": {
+        "hit_rate_at_5": 0.6086,
+        "top5_3plus_rate": 0.702,
+        "avg_5d_return": 0.0254
+    },
+    "timestamp": "2026-08-12T17:43:00"
+}

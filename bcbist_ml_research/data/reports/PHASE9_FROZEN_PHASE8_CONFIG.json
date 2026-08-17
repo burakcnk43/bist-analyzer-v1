@@ -1,0 +1,25 @@
+{
+    "phase": 8,
+    "universe": "FULL BIST (495 symbols)",
+    "base_models": {
+        "classifier": {"model_type": "xgboost", "n_features": 30},
+        "ranker": {"model_type": "xgboost", "n_features": 30}
+    },
+    "ensemble": {
+        "w_cls": 0.3,
+        "w_rnk": 0.7
+    },
+    "meta_models": {
+        "success_predictor": {"model_type": "xgboost", "n_estimators": 50},
+        "similarity_engine": {"k": 20}
+    },
+    "meta_ensemble": {
+        "w_base": 0.5,
+        "w_success": 0.3,
+        "w_similarity": 0.2
+    },
+    "horizon": "5d",
+    "target_hit_rate_at_5": 0.7483,
+    "target_avg_return": 0.0468,
+    "timestamp": "2026-08-12T18:00:00"
+}

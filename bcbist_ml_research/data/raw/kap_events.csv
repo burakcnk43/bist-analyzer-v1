@@ -1,0 +1,29 @@
+symbol,timestamp,event_type,importance,title,sentiment
+TUPRS.IS,2023-03-10 18:30:00,dividend,5,Net 40.87 TL per share payout,1.0
+TUPRS.IS,2023-04-04 18:30:00,capital_increase,5,600% bonus share distribution,0.8
+TUPRS.IS,2024-11-05 18:30:00,financial_results,5,Q3 2024 financial results release,0.5
+FROTO.IS,2023-03-13 18:30:00,dividend,5,Net 12.82 TL per share payout,1.0
+FROTO.IS,2024-11-05 18:30:00,financial_results,5,Q3 2024 financial results release,0.4
+YKBNK.IS,2023-03-20 18:30:00,dividend,4,Net 0.84 TL per share payout,0.7
+YKBNK.IS,2024-02-02 18:30:00,financial_results,5,Q4 2023 year-end results release,0.6
+YKBNK.IS,2024-10-31 18:30:00,financial_results,5,Q3 2024 financial results release,0.3
+AKBNK.IS,2024-02-01 18:30:00,financial_results,5,Q4 2023 year-end results release,0.7
+AKBNK.IS,2024-10-24 18:30:00,financial_results,5,Q3 2024 financial results release,0.4
+GARAN.IS,2024-01-29 18:30:00,financial_results,5,Q4 2023 year-end results release,0.8
+GARAN.IS,2024-10-30 18:30:00,financial_results,5,Q3 2024 financial results release,0.5
+ASELS.IS,2023-08-24 18:30:00,capital_increase,5,100% bonus share distribution,0.9
+ASELS.IS,2024-10-15 18:30:00,financial_results,5,Q3 2024 financial results release,0.6
+KOZAL.IS,2023-02-17 18:30:00,capital_increase,5,2000% bonus share distribution,1.0
+MAVI.IS,2024-05-06 18:30:00,dividend,4,Net 1.91 TL per share payout,0.6
+THYAO.IS,2024-03-01 18:30:00,financial_results,5,Q4 2023 year-end results release,0.7
+THYAO.IS,2024-11-05 18:30:00,financial_results,5,Q3 2024 financial results release,0.5
+SISE.IS,2024-05-31 18:30:00,dividend,4,Cash dividend payout,0.5
+SISE.IS,2024-11-08 18:30:00,financial_results,5,Q3 2024 financial results release,0.2
+KCHOL.IS,2024-03-15 18:30:00,financial_results,5,Q4 2023 year-end results release,0.6
+KCHOL.IS,2024-11-07 18:30:00,financial_results,5,Q3 2024 financial results release,0.4
+SAHOL.IS,2024-11-06 18:30:00,financial_results,5,Q3 2024 financial results release,0.3
+TCELL.IS,2024-11-07 18:30:00,financial_results,5,Q3 2024 financial results release,0.5
+BIMAS.IS,2024-05-13 18:30:00,financial_results,5,Q4 2023 year-end results release,0.4
+BIMAS.IS,2024-11-11 18:30:00,financial_results,5,Q3 2024 financial results release,0.3
+EREGL.IS,2024-07-24 18:30:00,capital_increase,4,100% bonus share distribution,0.5
+ENKAI.IS,2024-05-08 18:30:00,dividend,4,Cash dividend distribution,0.6

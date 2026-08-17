@@ -1,0 +1,37 @@
+[
+    {
+        "timestamp": "2026-08-17T12:56:06.106501",
+        "trial_id": "p22_v5_utility",
+        "config": {
+            "optimizer": "V5",
+            "utility_weights": {
+                "p3plus": 0.4,
+                "p4plus": 0.1,
+                "expected_ret": 0.3,
+                "tail_risk": 0.1,
+                "liquidity": 0.1
+            },
+            "meta": "V5_Adaptive",
+            "event_chain": "ENABLED"
+        },
+        "metrics": {
+            "coverage": 1.0,
+            "avg_k": 5.0,
+            "unconditional_3plus": 0.38571428571428573,
+            "conditional_3plus": 0.38571428571428573,
+            "unconditional_1plus": 0.7571428571428571,
+            "avg_5d_return": -0.0047317701282687434,
+            "worst_day": -0.11403354685104469,
+            "median_hits": 2.0,
+            "regime_breakdown": {
+                "SIDEWAYS_LOW_VOL": {
+                    "is_3plus": 0.38571428571428573,
+                    "avg_return": -0.004731770128268743,
+                    "days": 70
+                }
+            }
+        },
+        "accepted": true,
+        "reason": ""
+    }
+]

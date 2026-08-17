@@ -1,0 +1,291 @@
+{
+    "timestamp": "2026-08-11T16:27:08.301488",
+    "stocks_analyzed": 50,
+    "total_samples": 36023,
+    "real_kap_events": 23,
+    "ablation_results": [
+        {
+            "Configuration": "A: Technical",
+            "Feature Count": 31,
+            "Avg Accuracy": 0.4812282928132514
+        },
+        {
+            "Configuration": "B: Tech + Vol",
+            "Feature Count": 39,
+            "Avg Accuracy": 0.47565763784705806
+        },
+        {
+            "Configuration": "C: + Sector",
+            "Feature Count": 45,
+            "Avg Accuracy": 0.4913936784561952
+        },
+        {
+            "Configuration": "D: + Macro",
+            "Feature Count": 57,
+            "Avg Accuracy": 0.5263365975461889
+        },
+        {
+            "Configuration": "E: + Fundamental",
+            "Feature Count": 57,
+            "Avg Accuracy": 0.5263365975461889
+        },
+        {
+            "Configuration": "F: + Macro Events",
+            "Feature Count": 65,
+            "Avg Accuracy": 0.5240507922480939
+        },
+        {
+            "Configuration": "G: FULL (Inc. Company KAP)",
+            "Feature Count": 66,
+            "Avg Accuracy": 0.5200268706714071
+        }
+    ],
+    "event_type_analysis": [
+        {
+            "event_type": "financial_results",
+            "sample_count": 18,
+            "mean_return": 0.03246093088553596,
+            "median_return": 0.0229958669112141,
+            "win_rate": 0.8333333333333334,
+            "volatility": 0.056334617146157326
+        },
+        {
+            "event_type": "central_bank",
+            "sample_count": 576,
+            "mean_return": 0.010436024398383873,
+            "median_return": 0.00522784043271045,
+            "win_rate": 0.5260416666666666,
+            "volatility": 0.06436308436228207
+        }
+    ],
+    "sector_sensitivity": [
+        {
+            "sector": "Technology",
+            "count": 96,
+            "mean_return": 0.027371483321149224,
+            "median_return": -0.0066196136261728504,
+            "win_rate": 0.4791666666666667,
+            "volatility": 0.15769366863479728
+        },
+        {
+            "sector": "Apparel",
+            "count": 52,
+            "mean_return": 0.02590556183963714,
+            "median_return": 0.02014939765632925,
+            "win_rate": 0.6730769230769231,
+            "volatility": 0.057420702052534876
+        },
+        {
+            "sector": "Polymers",
+            "count": 48,
+            "mean_return": 0.021886084056077254,
+            "median_return": 0.01344079173343565,
+            "win_rate": 0.6458333333333334,
+            "volatility": 0.06649415899393546
+        },
+        {
+            "sector": "REIT",
+            "count": 96,
+            "mean_return": 0.019652175259331904,
+            "median_return": 0.01010051562676955,
+            "win_rate": 0.5729166666666666,
+            "volatility": 0.058199590409599974
+        },
+        {
+            "sector": "Telecommunications",
+            "count": 99,
+            "mean_return": 0.017107544122825454,
+            "median_return": 0.0095986554720683,
+            "win_rate": 0.6464646464646465,
+            "volatility": 0.04670793281192173
+        },
+        {
+            "sector": "Construction",
+            "count": 99,
+            "mean_return": 0.01696368433707931,
+            "median_return": 0.0133843304716574,
+            "win_rate": 0.5959595959595959,
+            "volatility": 0.05029557215442274
+        },
+        {
+            "sector": "Energy",
+            "count": 192,
+            "mean_return": 0.01669186347386339,
+            "median_return": 0.0027714902586175,
+            "win_rate": 0.5260416666666666,
+            "volatility": 0.08344495567467623
+        },
+        {
+            "sector": "Beverages",
+            "count": 96,
+            "mean_return": 0.016109827553130025,
+            "median_return": 0.0326807156383519,
+            "win_rate": 0.7083333333333334,
+            "volatility": 0.14511666958719605
+        },
+        {
+            "sector": "Aviation",
+            "count": 150,
+            "mean_return": 0.015723353767079118,
+            "median_return": 0.01237029822520725,
+            "win_rate": 0.5733333333333334,
+            "volatility": 0.042016441608484875
+        },
+        {
+            "sector": "White Goods",
+            "count": 96,
+            "mean_return": 0.015104801708782645,
+            "median_return": 0.0170059697537637,
+            "win_rate": 0.6145833333333334,
+            "volatility": 0.05291920511594757
+        },
+        {
+            "sector": "Banking",
+            "count": 209,
+            "mean_return": 0.014842056755500651,
+            "median_return": 0.0199305636506954,
+            "win_rate": 0.631578947368421,
+            "volatility": 0.057207503426289955
+        },
+        {
+            "sector": "Holding",
+            "count": 201,
+            "mean_return": 0.0137060348684326,
+            "median_return": 0.0133614462402176,
+            "win_rate": 0.6268656716417911,
+            "volatility": 0.04779956914421927
+        },
+        {
+            "sector": "Defense",
+            "count": 51,
+            "mean_return": 0.013408569391573508,
+            "median_return": 0.0115403766534918,
+            "win_rate": 0.6078431372549019,
+            "volatility": 0.049032856163194895
+        },
+        {
+            "sector": "Textile",
+            "count": 48,
+            "mean_return": 0.011512989158958006,
+            "median_return": 0.00531996013071065,
+            "win_rate": 0.5416666666666666,
+            "volatility": 0.06820506670123574
+        },
+        {
+            "sector": "Steel",
+            "count": 97,
+            "mean_return": 0.010176466849327796,
+            "median_return": 0.0096533175597006,
+            "win_rate": 0.5979381443298969,
+            "volatility": 0.04711111341723269
+        },
+        {
+            "sector": "Automotive",
+            "count": 195,
+            "mean_return": 0.009229604320281488,
+            "median_return": 0.0037878004262799,
+            "win_rate": 0.5128205128205128,
+            "volatility": 0.05561857761386982
+        },
+        {
+            "sector": "Retail",
+            "count": 152,
+            "mean_return": 0.008192747578303785,
+            "median_return": 0.00924091889259745,
+            "win_rate": 0.5657894736842105,
+            "volatility": 0.05093071400959863
+        },
+        {
+            "sector": "Petrochemicals",
+            "count": 99,
+            "mean_return": 0.007384810750337035,
+            "median_return": 0.0112359440196765,
+            "win_rate": 0.5757575757575758,
+            "volatility": 0.05959299277379314
+        },
+        {
+            "sector": "Catering",
+            "count": 48,
+            "mean_return": 0.006829303230667665,
+            "median_return": 0.00775711468790725,
+            "win_rate": 0.6041666666666666,
+            "volatility": 0.03449702174180615
+        },
+        {
+            "sector": "Cement",
+            "count": 96,
+            "mean_return": 0.004349628143864329,
+            "median_return": 0.00162732438322895,
+            "win_rate": 0.5,
+            "volatility": 0.06346213435439801
+        },
+        {
+            "sector": "Agriculture",
+            "count": 48,
+            "mean_return": -0.00038610087359280016,
+            "median_return": -0.0077405767973152,
+            "win_rate": 0.4375,
+            "volatility": 0.06092167806710485
+        },
+        {
+            "sector": "Insurance",
+            "count": 48,
+            "mean_return": -0.0015628499849283598,
+            "median_return": -0.0083640498103651,
+            "win_rate": 0.3958333333333333,
+            "volatility": 0.08113763618086696
+        },
+        {
+            "sector": "Glass",
+            "count": 54,
+            "mean_return": -0.004404096463431735,
+            "median_return": -0.0090176135617693,
+            "win_rate": 0.4444444444444444,
+            "volatility": 0.03431686261725417
+        }
+    ],
+    "tech_event_interaction": [
+        {
+            "rsi_state": "Neutral",
+            "has_event": 0,
+            "count": 29539,
+            "mean_return": 0.003561111802890899,
+            "win_rate": 0.501981860933826
+        },
+        {
+            "rsi_state": "Neutral",
+            "has_event": 1,
+            "count": 1998,
+            "mean_return": 0.01042655234084553,
+            "win_rate": 0.5545545545545546
+        },
+        {
+            "rsi_state": "Overbought",
+            "has_event": 0,
+            "count": 2542,
+            "mean_return": 0.007038120158405956,
+            "win_rate": 0.5270588235294118
+        },
+        {
+            "rsi_state": "Overbought",
+            "has_event": 1,
+            "count": 259,
+            "mean_return": 0.00968610593307575,
+            "win_rate": 0.6023166023166023
+        },
+        {
+            "rsi_state": "Oversold",
+            "has_event": 0,
+            "count": 1332,
+            "mean_return": 0.009543323420983702,
+            "win_rate": 0.5401350337584396
+        },
+        {
+            "rsi_state": "Oversold",
+            "has_event": 1,
+            "count": 113,
+            "mean_return": 0.0688016261756603,
+            "win_rate": 0.8584070796460177
+        }
+    ]
+}

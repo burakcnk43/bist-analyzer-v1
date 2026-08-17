@@ -1,0 +1,20 @@
+{
+    "phase": 9,
+    "universe": "FULL BIST (495 symbols)",
+    "meta_learning": {
+        "success_predictor": "xgboost_depth3_n50",
+        "failure_predictor": "xgboost_depth2_n30",
+        "similarity_engine": "knn_k20_rsi_bb_vol"
+    },
+    "ensemble_weights": {
+        "base": 0.5,
+        "success": 0.4,
+        "failure_penalty": 0.2
+    },
+    "reported_performance": {
+        "unseen_hit_rate_at_5": 0.6108,
+        "unseen_avg_5d_return": 0.0282,
+        "unseen_win_rate_days": 0.831
+    },
+    "timestamp": "2026-08-12T18:32:00"
+}

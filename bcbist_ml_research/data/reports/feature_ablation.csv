@@ -1,0 +1,6 @@
+Configuration,Feature Count,Avg Accuracy
+A: Technical Only,31,0.4812282928132514
+B: Tech + Vol,39,0.47565763784705806
+C: Tech + Vol + Sector,45,0.4873335354199634
+D: Tech + Vol + Sector + Macro,57,0.5273518259725847
+F: FULL (Inc. KAP/Events),62,0.5530248772066833
