@@ -9,7 +9,7 @@ class AdaptiveTopKSelectorV2:
     """
     Dynamically determines K in {1, 3, 5} to maximize Expected Group Utility.
     """
-    def __init__(self, min_utility_threshold=0.3):
+    def __init__(self, min_utility_threshold=0.15):
         self.min_utility_threshold = min_utility_threshold
 
     def determine_optimal_k(self,

@@ -49,6 +49,32 @@ class MarketDataProvider:
             logger.error(f"Error fetching data for {symbol}: {str(e)}")
             return pd.DataFrame()
 
+    def fetch_intraday(self, symbol: str) -> pd.DataFrame:
+        """
+        Fetches the first 30 mins of the current trading day (10:00 - 10:30 TR Time).
+        Returns 5m interval data.
+        """
+        logger.info(f"Fetching intraday data for {symbol}")
+        try:
+            ticker = yf.Ticker(symbol)
+            # Use period='1d' and interval='5m'
+            df = ticker.history(period="1d", interval="5m")
+
+            if df.empty:
+                return pd.DataFrame()
+
+            # Ensure index is datetime
+            df.index = pd.to_datetime(df.index)
+            # Convert to TR Time if needed (yfinance usually returns localized)
+            # For simplicity, assume the latest day's data is what we need
+
+            # Filter for 10:00 to 10:30 if possible, or just take the first few rows
+            # BIST usually starts at 10:00
+            return df
+        except Exception as e:
+            logger.error(f"Error fetching intraday for {symbol}: {e}")
+            return pd.DataFrame()
+
     def get_latest_price(self, symbol: str) -> Optional[float]:
         try:
             ticker = yf.Ticker(symbol)

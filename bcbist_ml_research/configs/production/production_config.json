@@ -10,7 +10,8 @@
             "liquidity": 0.1
         },
         "sector_cap": 3,
-        "min_distinct_sectors": 3
+        "min_distinct_sectors": 3,
+        "min_utility_threshold": 0.15
     },
     "risk": {
         "veto_threshold_bear": 0.5,

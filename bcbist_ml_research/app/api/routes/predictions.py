@@ -4,23 +4,25 @@ import numpy as np
 import logging
 from app.config import DATA_FEATURES_DIR, BREADTH_DATA_PATH
 
+from fastapi.responses import FileResponse
+from app.data.market_data import MarketDataProvider
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
+market_provider = MarketDataProvider()
 
 def discover_latest_date():
     """
     Finds the latest common date across feature files.
     """
     try:
-        # Optimization: Check market breadth first as it's a single file
         if BREADTH_DATA_PATH.exists():
             mkt_df = pd.read_csv(BREADTH_DATA_PATH, index_col='date', parse_dates=True)
             if not mkt_df.empty:
                 return mkt_df.index.max().strftime("%Y-%m-%d")
 
-        # Fallback: check feature files
         latest_dates = []
-        for f in list(DATA_FEATURES_DIR.glob("*.csv"))[:10]: # Check sample for speed
+        for f in list(DATA_FEATURES_DIR.glob("*.csv"))[:10]:
             with open(f, 'r') as file:
                  lines = file.readlines()
                  if len(lines) > 1:
@@ -35,44 +37,46 @@ def discover_latest_date():
         return None
 
 @router.get("/daily-picks")
-async def get_daily_picks(request: Request):
+async def get_daily_picks(request: Request, intraday: bool = False):
     pm = request.app.state.production_manager
 
     try:
         latest_date = discover_latest_date()
         if not latest_date:
-            raise HTTPException(status_code=503, detail="Decision engine not ready: No feature data found")
-
-        logger.info(f"Generating picks for dynamic date: {latest_date}")
+            raise HTTPException(status_code=503, detail="Decision engine not ready")
 
         all_dfs = []
-        # Load up to 150 symbols for performance
+        symbols_found = []
         count = 0
         for f in DATA_FEATURES_DIR.glob("*.csv"):
             if count > 150: break
             df = pd.read_csv(f, index_col='date', parse_dates=True)
             if latest_date in df.index:
+                sym = f.stem.replace('_features', '').replace('_', '.')
                 row = df.loc[[latest_date]].copy()
-                row['symbol_col'] = f.stem.replace('_features', '').replace('_', '.')
+                row['symbol_col'] = sym
                 all_dfs.append(row)
+                symbols_found.append(sym)
                 count += 1
 
         if not all_dfs:
-            raise HTTPException(status_code=404, detail=f"No symbols found for date {latest_date}")
+            raise HTTPException(status_code=404, detail="No symbols found")
 
         day_data = pd.concat(all_dfs)
-
-        # Load market context aligned to date
-        if not BREADTH_DATA_PATH.exists():
-             raise HTTPException(status_code=503, detail="Market context missing")
-
         mkt_df = pd.read_csv(BREADTH_DATA_PATH, index_col='date', parse_dates=True)
         mkt_data = mkt_df[mkt_df.index <= latest_date].tail(20)
 
-        if mkt_data.empty:
-             raise HTTPException(status_code=404, detail="Market context stale or unavailable")
+        # Fetch Intraday if requested
+        intraday_results = None
+        if intraday:
+            logger.info("Fetching intraday confirmation data...")
+            intraday_results = {}
+            for sym in symbols_found[:50]:
+                intra = market_provider.fetch_intraday(sym)
+                if not intra.empty:
+                    intraday_results[sym] = intra
 
-        response = pm.get_daily_picks(day_data, mkt_data)
+        response = pm.get_daily_picks(day_data, mkt_data, intraday_data=intraday_results)
         return response
 
     except HTTPException:
@@ -80,6 +84,19 @@ async def get_daily_picks(request: Request):
     except Exception as e:
         logger.error(f"Prediction Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal decision engine error")
+
+@router.get("/report-pdf")
+async def get_latest_report_pdf(request: Request):
+    """
+    Downloads the latest generated PDF report.
+    """
+    report_dir = Path("data/reports/daily")
+    pdfs = sorted(report_dir.glob("*.pdf"))
+    if not pdfs:
+        raise HTTPException(status_code=404, detail="No reports generated yet")
+
+    latest_pdf = pdfs[-1]
+    return FileResponse(latest_pdf, media_type='application/pdf', filename=latest_pdf.name)
 
 @router.get("/{symbol}")
 async def get_prediction(symbol: str, request: Request):

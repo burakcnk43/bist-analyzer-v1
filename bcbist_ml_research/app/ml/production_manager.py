@@ -20,6 +20,9 @@ from app.ml.market_quality import HighQualityMarketDayPredictor
 from app.ml.adaptive_k import AdaptiveTopKSelectorV2
 from app.research.regimes import MarketRegimeDetector
 
+from app.ml.intraday_filter import IntradayGater
+from app.ml.pdf_reports import BcbistPdfEngine
+
 logger = logging.getLogger(__name__)
 
 class ProductionManager:
@@ -51,15 +54,20 @@ class ProductionManager:
 
         self.drift_guard = DriftGuardV2(threshold=self.config['risk']['max_drift_psi'])
         self.quality_predictor = HighQualityMarketDayPredictor()
-        self.k_selector = AdaptiveTopKSelectorV2()
+        self.k_selector = AdaptiveTopKSelectorV2(
+            min_utility_threshold=self.config['selection'].get('min_utility_threshold', 0.15)
+        )
         self.regime_detector = MarketRegimeDetector()
+        self.intraday_gater = IntradayGater()
+        self.pdf_engine = BcbistPdfEngine(DATA_REPORTS_DIR / "daily")
 
     def get_daily_picks(self,
                         day_data: pd.DataFrame,
                         market_data: pd.DataFrame,
-                        historical_trust_data: Optional[Dict] = None) -> Dict:
+                        intraday_data: Optional[Dict[str, pd.DataFrame]] = None) -> Dict:
         """
         Main entry point for production predictions.
+        Includes Intraday Confirmation Step.
         """
         current_date = day_data.index.max()
         regime = self.regime_detector.detect_regime(market_data)
@@ -71,7 +79,7 @@ class ProductionManager:
 
         # 2. Expert Scoring & Meta-Adjustments
         scores_df = self.scorer.calculate_production_scores(day_data, {'regime': regime})
-        day_scored = day_data.join(scores_df)
+        day_scored = day_data.join(scores_df).fillna(0)
 
         # Specialist Multipliers
         p_trust = self.trust_model.predict_trust_score(day_scored)
@@ -91,22 +99,32 @@ class ProductionManager:
         trust_coeff = rel_feats.get('rel_general_20d', 0.5) / 0.5
         day_scored['production_alpha'] = (day_scored['production_alpha'] * trust_coeff).clip(0, 1)
 
-        # 3. Utility-Based K Selection
+        # 3. Intraday Confirmation Veto (Phase 23)
+        if intraday_data:
+            logger.info("Applying Intraday Confirmation Veto...")
+            day_scored = self.intraday_gater.filter_candidates(day_scored, intraday_data)
+
+        # 4. Utility-Based K Selection
         group_X = self.group_predictor.prepare_group_features(market_data.iloc[-1], day_scored)
         hit_dist = self.group_predictor.predict_hit_distribution(group_X)
         k = self.k_selector.determine_optimal_k(hit_dist, mkt_quality)
 
-        if k == 0:
+        if k == 0 or day_scored.empty:
             return self._format_abstain_response(current_date, regime, mkt_quality, drift_score)
 
-        # 4. V5 Portfolio Optimization
+        # 5. V5 Portfolio Optimization
         picks = self.optimizer.select_optimal_set(
             day_scored, k=k,
             regime=regime,
             weights=self.config['selection']['utility_weights']
         )
 
-        return self._format_success_response(current_date, regime, mkt_quality, drift_score, picks, k)
+        response = self._format_success_response(current_date, regime, mkt_quality, drift_score, picks, k)
+
+        # Auto-generate PDF report
+        self.pdf_engine.generate_daily_pdf(response)
+
+        return response
 
     def _format_abstain_response(self, date, regime, quality, drift):
         return {
@@ -148,5 +166,6 @@ class ProductionManager:
         if row.get('dist_sma_20', 0) > 0: reasons.append("Trading above 20-day mean")
         if row.get('box_staircase_score', 0) > 2: reasons.append("Darvas staircase maturity")
         if row.get('production_alpha', 0) > 0.8: reasons.append("High multi-expert consensus")
+        if row.get('rel_sector_return_1d', 0) > 0.01: reasons.append("Sector relative strength leader")
 
         return " | ".join(reasons) if reasons else "Selected by composite utility optimization."

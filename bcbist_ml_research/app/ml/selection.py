@@ -21,11 +21,10 @@ class Top5CombinationOptimizer:
                            meta_learner=None, weights: Optional[Dict] = None) -> pd.DataFrame:
         """
         Maximizes Composite Portfolio Utility using V5 logic.
-        Utility = w1*P(3+) + w2*P(4+) + w3*ExpExcessRet - w4*TailRisk - w5*LiquidityPenalty
         """
         if candidates_df.empty: return pd.DataFrame()
 
-        scored = candidates_df.copy()
+        scored = candidates_df.copy().fillna(0)
 
         # Default V5 Weights (can be learned)
         w = weights or {
