@@ -4,7 +4,7 @@ from app.config import DATA_FEATURES_DIR
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("")
 async def get_health(request: Request):
     pm = request.app.state.production_manager
     models_status = "loaded" if pm.scorer.models else "missing"

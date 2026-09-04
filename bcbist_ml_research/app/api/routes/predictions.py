@@ -2,7 +2,8 @@ from fastapi import APIRouter, Request, HTTPException
 import pandas as pd
 import numpy as np
 import logging
-from app.config import DATA_FEATURES_DIR, BREADTH_DATA_PATH
+from pathlib import Path
+from app.config import DATA_FEATURES_DIR, BREADTH_DATA_PATH, DATA_REPORTS_DIR
 
 from fastapi.responses import FileResponse
 from app.data.market_data import MarketDataProvider
@@ -90,7 +91,7 @@ async def get_latest_report_pdf(request: Request):
     """
     Downloads the latest generated PDF report.
     """
-    report_dir = Path("data/reports/daily")
+    report_dir = DATA_REPORTS_DIR / "daily"
     pdfs = sorted(report_dir.glob("*.pdf"))
     if not pdfs:
         raise HTTPException(status_code=404, detail="No reports generated yet")
