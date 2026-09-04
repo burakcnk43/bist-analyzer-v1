@@ -1,0 +1,34 @@
+{
+    "champion_phase": 22,
+    "selection": {
+        "k_allowed": [1, 3, 5],
+        "utility_weights": {
+            "p3plus": 0.4,
+            "p4plus": 0.1,
+            "expected_ret": 0.3,
+            "tail_risk": 0.1,
+            "liquidity": 0.1
+        },
+        "sector_cap": 3,
+        "min_distinct_sectors": 3,
+        "min_utility_threshold": 0.15
+    },
+    "risk": {
+        "veto_threshold_bear": 0.5,
+        "veto_threshold_bull": 0.65,
+        "max_drift_psi": 0.2,
+        "max_transition_prob": 0.7
+    },
+    "meta_learning": {
+        "windows": [10, 20, 60, 120],
+        "decay_factor": 0.98,
+        "expert_similarity_boost": 1.5
+    },
+    "features": {
+        "invariant_core": ["relative_volume", "dist_sma_20", "pct_above_sma50"],
+        "interactions": [
+            ["relative_volume", "dist_sma_20"],
+            ["rsi_14", "pct_above_sma50"]
+        ]
+    }
+}
