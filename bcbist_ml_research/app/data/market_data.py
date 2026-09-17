@@ -75,6 +75,62 @@ class MarketDataProvider:
             logger.error(f"Error fetching intraday for {symbol}: {e}")
             return pd.DataFrame()
 
+    def get_realtime_indices(self) -> Dict[str, float]:
+        """
+        Fetches true active values for global and local indices.
+        Used for regime transition confirmation.
+        """
+        indices = {
+            "XU100": "XU100.IS",
+            "SP500": "^GSPC",
+            "USDTRY": "USDTRY=X",
+            "GOLD": "GC=F"
+        }
+        results = {}
+        for name, ticker in indices.items():
+            try:
+                data = yf.Ticker(ticker).history(period="1d")
+                if not data.empty:
+                    results[name] = data['Close'].iloc[-1]
+            except Exception as e:
+                logger.warning(f"Failed to fetch realtime {name}: {e}")
+        return results
+
+    def estimate_market_breadth(self, current_data: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+        """
+        Calculates active market breadth (percent above SMA50) from the provided symbol pool.
+        Makes the decision engine truly 'Active' without relying on static files.
+        """
+        if not current_data:
+             return pd.DataFrame([{"regime": "NORMAL", "pct_above_sma50": 0.5}], index=[datetime.now()])
+
+        breadth_points = []
+        # Get common dates
+        all_dates = sorted(set().union(*(df.index for df in current_data.values())))
+
+        for dt in all_dates[-20:]: # Last 20 days
+            active_at_dt = []
+            for sym, df in current_data.items():
+                if dt in df.index:
+                    # Calculate SMA50 on the fly
+                    close = df['close'].loc[:dt]
+                    if len(close) >= 50:
+                        sma50 = close.tail(50).mean()
+                        active_at_dt.append(1 if close.iloc[-1] > sma50 else 0)
+
+            if active_at_dt:
+                breadth_points.append({
+                    "date": dt,
+                    "pct_above_sma50": sum(active_at_dt) / len(active_at_dt)
+                })
+
+        breadth_df = pd.DataFrame(breadth_points).set_index("date")
+        # Add basic momentum
+        if len(breadth_df) > 5:
+            breadth_df['breadth_momentum'] = breadth_df['pct_above_sma50'].diff(5)
+
+        return breadth_df.fillna(0.5)
+
     def get_latest_price(self, symbol: str) -> Optional[float]:
         try:
             ticker = yf.Ticker(symbol)

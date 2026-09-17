@@ -1,20 +1,21 @@
-# Phase 11: Adaptive Self-Learning Top-5 Optimization Task List
+# Phase 25: Unified On-Device Flutter Intelligence (APK)
 
-- `[ ]` **Step 1: Success Memory System**
-    - `[ ]` Implement `app/ml/memory.py` for structured prediction storage.
-    - `[ ]` Create `scripts/phase11_init_memory.py` to ingest historical logs.
-- `[ ]` **Step 2: Regime & Drift Detection**
-    - `[ ]` Implement `MarketRegimeDetector` with multi-factor triggers.
-    - `[ ]` Build `DriftMonitor` for feature/prediction distribution tracking.
-- `[ ]` **Step 3: Meta-Model 2.0 & Adaptive Ensemble**
-    - `[ ]` Add dynamic weighting logic to `AlphaEnsemble`.
-    - `[ ]` Build `MetaModelV2` incorporating disagreement and regime.
-- `[ ]` **Step 4: Advanced Guardrails**
-    - `[ ]` Update `ProductionScorer` with new regime logic.
-    - `[ ]` Implement `RecoverySignal` for post-crash identification.
-- `[ ]` **Step 5: Research & Pattern Mining**
-    - `[ ]` Create `PatternMiner` to discover feature interactions.
-    - `[ ]` Generate failure/success analysis artifacts.
-- `[ ]` **Step 6: Final Evaluation**
-    - `[ ]` Run multi-seed walk-forward experiments.
-    - `[ ]` Produce Phase 11 final reports and scoreboard.
+- `[x]` 1. Android Foundation Setup
+    - `[x]` Create Android project structure under `/android`
+    - `[x]` Configure `Chaquopy` in `build.gradle`
+    - `[x]` Add `fpdf2`, `xgboost`, `yfinance` to Python requirements in Gradle
+- `[x]` 2. Python Mobile Optimization
+    - `[x]` Create `app/mobile_bridge.py` for Kotlin-Python communication
+    - `[x]` Optimize `feature_pipeline.py` for single-threaded execution (OOM prevention)
+    - `[x]` Implement "Fast Mode" in `LiveDataProvider` (Top 50 symbols)
+- `[x]` 3. Asset Integration
+    - `[x]` Bundle `models/production/` artifacts as Android assets
+    - `[x]` Ensure strict path handling for Joblib loading on mobile
+- `[x]` 4. Native UI Implementation
+    - `[x]` Create Jetpack Compose `MainActivity` with Analysis Button
+    - `[x]` Implement progress tracking and status updates
+    - `[x]` Add PDF Open intent for generated reports
+- `[/]` 5. Flutter Integration
+    - `[x]` Create `OnDeviceService` in Flutter
+    - `[x]` Refactor `StocksRepository` to use on-device logic
+    - `[ ]` Test APK Build

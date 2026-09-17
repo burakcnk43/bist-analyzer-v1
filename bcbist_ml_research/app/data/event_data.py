@@ -128,11 +128,35 @@ class CSVFallbackProvider(BaseEventProvider):
             logger.error(f"CSVFallbackProvider: Error reading file: {e}")
             return []
 
+from app.data.news_data import NewsDataProvider
+
+class NewsEventProvider(BaseEventProvider):
+    def __init__(self):
+        self.provider = NewsDataProvider()
+
+    def fetch_events(self, symbols: List[str], start_date: str, end_date: str) -> List[Event]:
+        all_news = []
+        for sym in symbols[:30]: # Limit for performance
+            news_items = self.provider.fetch_news(sym)
+            for n in news_items:
+                ts = pd.to_datetime(n['timestamp'])
+                if ts >= pd.to_datetime(start_date) and ts <= pd.to_datetime(end_date):
+                    all_news.append(Event(
+                        symbol=n['symbol'],
+                        timestamp=ts,
+                        event_type="news",
+                        title=n['title'],
+                        sentiment=n['sentiment'],
+                        source=n['source']
+                    ))
+        return all_news
+
 class EventDataProvider:
     def __init__(self):
         self.providers = [
             MacroEventProvider(),
             KAPProvider(),
+            NewsEventProvider(),
             CSVFallbackProvider()
         ]
 

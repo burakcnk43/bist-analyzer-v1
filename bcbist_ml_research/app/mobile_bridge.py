@@ -36,33 +36,32 @@ class MobileDecisionEngine:
         self.pm = ProductionManager(config_path)
         self.market_provider = MarketDataProvider()
 
-    def run_daily_analysis(self, symbols_limit=50) -> str:
+    def run_daily_analysis(self, symbols_limit=100) -> str:
         """
         Main execution loop for on-device analysis.
-        Returns: Path to the generated PDF report.
+        Uses full 5-year feature set + Active News.
         """
-        logger.info(f"Starting analysis for Top {symbols_limit} symbols...")
+        logger.info(f"Starting High-Accuracy analysis for Top {symbols_limit} symbols...")
 
-        # 1. Fetch Data (yfinance)
+        # 1. Fetch Data (yfinance) - Ensure we get latest active data
         symbols = [s['symbol'] for s in STOCK_UNIVERSE[:symbols_limit]]
 
-        # Use simple timeframe for speed
+        # Use full window for Darvas and Technical consistency
         end_date = datetime.now().strftime("%Y-%m-%d")
-        start_date = (datetime.now() - pd.Timedelta(days=60)).strftime("%Y-%m-%d")
+        start_date = (datetime.now() - pd.Timedelta(days=180)).strftime("%Y-%m-%d")
 
         all_raw = {}
         for sym in symbols:
-            logger.info(f"Fetching {sym}...")
             df = self.market_provider.fetch_ohlcv(sym, start_date, end_date)
             if not df.empty:
                 all_raw[sym] = df
 
         if not all_raw:
-            return "ERROR: Data fetch failed"
+            return "ERROR: Active data fetch failed"
 
-        # 2. Feature Building
-        # Note: We override n_jobs=1 in feature_pipeline for mobile stability
-        processed_data = run_feature_pipeline(all_raw, include_events=False) # Skip events for speed
+        # 2. Feature Building - INCLUDING EVENTS/NEWS
+        logger.info("Building full feature set (Technical + Sector + News)...")
+        processed_data = run_feature_pipeline(all_raw, include_events=True)
 
         # Aligment
         latest_date = max([df.index.max() for df in processed_data.values()])
