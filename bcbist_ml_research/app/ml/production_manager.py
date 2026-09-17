@@ -23,13 +23,14 @@ from app.research.regimes import MarketRegimeDetector
 from app.ml.intraday_filter import IntradayGater
 from app.ml.pdf_reports import BcbistPdfEngine
 
+from app.ml.memory import MemoryEngine
+
 logger = logging.getLogger(__name__)
 
 class ProductionManager:
     """
-    Champion Decision Engine (Phase 22).
-    Orchestrates data ingestion, multi-expert scoring, risk vetting,
-    and utility-optimized selection.
+    Champion Decision Engine (Phase 27).
+    Includes Self-Improving Memory and Dynamic Threshold Adaptation.
     """
     def __init__(self, config_path: Path):
         with open(config_path, 'r') as f:
@@ -44,6 +45,8 @@ class ProductionManager:
             decay_factor=self.config['meta_learning']['decay_factor']
         )
         self.meta_learner.load_state(prod_models_dir / "meta_learner_state.joblib")
+
+        self.memory = MemoryEngine(DATA_REPORTS_DIR / "production_memory.csv")
 
         # Load Experts
         self.transition_expert = RegimeTransitionExpert.load(prod_models_dir / "transition_expert.joblib") if (prod_models_dir / "transition_expert.joblib").exists() else RegimeTransitionExpert()
@@ -105,6 +108,21 @@ class ProductionManager:
             logger.info("Applying Intraday Confirmation Veto...")
             day_scored = self.intraday_gater.filter_candidates(day_scored, intraday_data)
 
+        # Phase 27: Accuracy Maximization (The Sniper Filter)
+        # 1. Volatility Spike Check: Avoid stocks that moved too much too fast (Mean Reversion Risk)
+        if 'rolling_std_5' in day_scored.columns and 'rolling_std_20' in day_scored.columns:
+            day_scored = day_scored[day_scored['rolling_std_5'] < 1.5 * day_scored['rolling_std_20']]
+
+        # 2. Sideways Precision Guard (Ultra-Precision)
+        if regime == 'SIDEWAYS_LOW_VOL':
+            logger.info("SIDEWAYS_LOW_VOL detected. Applying Ultra-Precision Guard...")
+            day_scored = day_scored[day_scored['production_alpha'] > 0.82] # Even higher
+            if 'dist_sma_20' in day_scored.columns:
+                day_scored = day_scored[day_scored['dist_sma_20'] > 0.015]
+            self.k_selector.min_utility_threshold = 0.30 # Extreme selective
+        else:
+            self.k_selector.min_utility_threshold = self.config['selection'].get('min_utility_threshold', 0.15)
+
         # 4. Utility-Based K Selection
         group_X = self.group_predictor.prepare_group_features(market_data.iloc[-1], day_scored)
         hit_dist = self.group_predictor.predict_hit_distribution(group_X)
@@ -122,10 +140,50 @@ class ProductionManager:
 
         response = self._format_success_response(current_date, regime, mkt_quality, drift_score, picks, k)
 
+        # 5. Persistent Self-Improvement
+        self._log_to_memory(response)
+        self.memory.save_memory()
+
         # Auto-generate PDF report
         self.pdf_engine.generate_daily_pdf(response)
 
         return response
+
+    def _log_to_memory(self, response: Dict):
+        """Records prediction snapshot for outcome tracking."""
+        if response['status'] != 'SUCCESS': return
+
+        records = []
+        for p in response['predictions']:
+            records.append({
+                "date": response['date'],
+                "symbol": p['symbol'],
+                "sector": p['sector'],
+                "raw_score": p['probability'],
+                "market_regime": response['market_regime'],
+                "market_quality": response['market_quality']
+            })
+        self.memory.add_predictions(pd.DataFrame(records))
+
+    def adapt_parameters(self) -> Dict:
+        """
+        Dynamically boosts accuracy by adjusting thresholds based on recent hits.
+        """
+        perf = self.memory.get_recent_performance(days=10)
+        hit_rate = perf.get('hit_rate', 0.5)
+
+        # New Phase 27 Gating Rules
+        current_utility = self.config['selection'].get('min_utility_threshold', 0.15)
+
+        if hit_rate < 0.45:
+             # Accuracy dropping, increase defensive threshold
+             self.k_selector.min_utility_threshold = min(0.35, current_utility + 0.05)
+             logger.warning(f"Accuracy Dip ({hit_rate:.2%}). Increasing utility threshold to {self.k_selector.min_utility_threshold}")
+        elif hit_rate > 0.65:
+             # High accuracy, allow more opportunistic selections
+             self.k_selector.min_utility_threshold = max(0.12, current_utility - 0.02)
+
+        return perf
 
     def _format_abstain_response(self, date, regime, quality, drift):
         return {
