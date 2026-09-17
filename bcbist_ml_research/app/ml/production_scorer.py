@@ -48,71 +48,55 @@ class ProductionScorer:
                                    box_expert=None,
                                    meta_v3=None) -> pd.DataFrame:
         results = pd.DataFrame(index=X.index)
-        h5_ens = self.models.get(5)
-        h5_cal = self.calibrators.get(5)
+
+        # Phase 26 Pivot: Prioritize 1D and 3D horizons for maximum immediate accuracy
+        h1_ens = self.models.get(1)
+        h3_ens = self.models.get(3)
+        h1_cal = self.calibrators.get(1)
 
         regime = market_context.get('regime', 'NORMAL')
         results['regime'] = regime
         trans_prob = market_context.get('transition_prob', 0.0)
 
-        if h5_ens:
-            # Phase 11: Base score with Adaptive Weights if provided
-            if adaptive_weights:
-                h5_ens.set_weights(w_cls=adaptive_weights.get('cls', 0.3),
-                                   w_rnk=adaptive_weights.get('rnk', 0.7))
-
-            # 1. Proposal Generation
+        if h1_ens and h3_ens:
+            # 1. Proposal Generation (Precision Momentum focus)
             specialist_probs = {}
-            specialist_probs['general'] = h5_ens.get_alpha_score(X)
+            # Blend 1D and 3D for the 'general' expert to capture ultra-short pulse
+            s1 = h1_ens.get_alpha_score(X)
+            s3 = h3_ens.get_alpha_score(X)
+            specialist_probs['general'] = (0.7 * s1 + 0.3 * s3)
 
             if sector_expert:
-                specialist_probs['sector'] = sector_expert.predict(X, h5_ens)
+                specialist_probs['sector'] = sector_expert.predict(X, h1_ens)
             if regime_expert:
-                specialist_probs['regime'] = regime_expert.predict(X, regime, h5_ens)
+                specialist_probs['regime'] = regime_expert.predict(X, regime, h1_ens)
             if box_expert:
                 specialist_probs['box'] = box_expert.predict_probs(X)
 
-            # 2. Gating (Meta V3)
+            # 2. Gating (Meta V3 - Targeted for 1D)
             if meta_v3:
                 trust_stats = market_context.get('reliability', {})
-                # Box features extraction
                 box_cols = [c for c in X.columns if 'box_' in c or 'is_breakout' in c]
                 box_metrics = X[box_cols] if box_cols else None
 
                 meta_X = meta_v3.prepare_gating_features(X, specialist_probs, regime, trans_prob, trust_stats, box_metrics)
                 results['production_alpha'] = meta_v3.predict_alpha(meta_X)
             else:
-                # Fallback to Phase 11 logic
-                base_score = specialist_probs['general']
-                if meta_v2:
-                    scores_dict = {"5d": base_score}
-                    if 1 in self.models: scores_dict["1d"] = self.models[1].get_alpha_score(X)
-                    if 3 in self.models: scores_dict["3d"] = self.models[3].get_alpha_score(X)
+                results['production_alpha'] = specialist_probs['general']
 
-                    meta_X = meta_v2.prepare_meta_features(X, scores_dict, regime, pd.DataFrame())
-                    results['production_alpha'] = meta_v2.predict_success_prob(meta_X)
-                else:
-                    trust = 0.5
-                    if success_mdl:
-                        X_m = X.copy()
-                        X_m['alpha_score'] = base_score
-                        X_m['daily_rank'] = pd.Series(base_score, index=X.index).rank(ascending=False)
-                        trust = success_mdl.predict_trust(X_m)
-                    sim_bin = (np.array(sim_alpha) > 0).astype(float) if sim_alpha is not None else 0.0
-                    results['production_alpha'] = (0.5 * base_score) + (0.3 * trust) + (0.2 * sim_bin)
+            # 3. Defensive / Ultra-Short Guardrails
+            # If 1D trend is negative, penalize alpha heavily for Phase 26
+            if 'return_1d' in X.columns:
+                results['production_alpha'] *= np.where(X['return_1d'] < 0, 0.8, 1.0)
 
-            # 3. Defensive / Recovery Guardrails
-            if regime == 'CRASH':
-                if 'rel_mkt_return_20' in X.columns:
-                    results['production_alpha'] += 0.2 * X['rel_mkt_return_20'].fillna(0)
-                if 'rsi_14' in X.columns:
-                    results['production_alpha'] *= (X['rsi_14'] / 50.0).clip(0.5, 1.0)
-
-            if regime == 'BULL_OVEREXTENDED' and trans_prob > 0.7:
-                # High risk of bubble burst
-                results['production_alpha'] *= 0.4
+            # Calibrate to 1D probability if available
+            if h1_cal:
+                results['calibrated_prob'] = h1_cal.calibrate(results['production_alpha'].values)
+            else:
+                results['calibrated_prob'] = results['production_alpha']
         else:
             results['production_alpha'] = 0
+            results['calibrated_prob'] = 0
 
         return results
 

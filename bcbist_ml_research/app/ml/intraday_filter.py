@@ -10,7 +10,7 @@ class IntradayGater:
     Accuracy Booster: Confirms EOD predictions using 10:00-10:30 opening market data.
     Vetoes candidates that show weakness in price trajectory or volume intensity.
     """
-    def __init__(self, min_intensity=0.8, min_trajectory=1.001):
+    def __init__(self, min_intensity=0.6, min_trajectory=1.005):
         self.min_intensity = min_intensity
         self.min_trajectory = min_trajectory
 

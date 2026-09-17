@@ -19,11 +19,11 @@ class BcbistPdfEngine:
         # Header
         pdf.set_font("Helvetica", "B", 24)
         pdf.set_text_color(20, 50, 100)
-        pdf.cell(0, 20, "BCBIST Daily Intelligence", ln=True, align="C")
+        pdf.cell(0, 20, "BCBIST Ultra-Short Intelligence", ln=True, align="C")
 
         pdf.set_font("Helvetica", "", 12)
         pdf.set_text_color(100, 100, 100)
-        pdf.cell(0, 10, f"Date: {date_str} | Generated at 10:30 AM TRT", ln=True, align="C")
+        pdf.cell(0, 10, f"Date: {date_str} | Horizon: 24-48 Hours", ln=True, align="C")
         pdf.ln(10)
 
         # Market Context

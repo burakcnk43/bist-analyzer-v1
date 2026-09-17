@@ -86,13 +86,13 @@ class ProductionManager:
         p_darvas = self.darvas_scorer.predict_success_prob(day_scored)
         p_event = self.event_expert.predict_event_impulse(day_scored)
 
-        # Weighted Ensemble for Production Alpha (Phase 23 Champion)
-        # Using 5-year longitudinal weights for maximum accuracy
+        # Weighted Ensemble for Production Alpha (Phase 26 Ultra-Short Pivot)
+        # Prioritizes 1-2 day momentum and reliability
         day_scored['production_alpha'] = (
-            0.35 * day_scored['production_alpha'] + # Base Multi-Horizon
-            0.25 * p_trust +                        # AlphaTrust Reliability
-            0.20 * p_darvas +                       # Darvas Box Confirmation
-            0.20 * p_event                          # Causal Event/News Impulse
+            0.40 * day_scored['production_alpha'] + # 1D/3D Base Blend
+            0.30 * p_trust +                        # AlphaTrust Precision
+            0.15 * p_darvas +                       # Darvas Box Breakout
+            0.15 * p_event                          # Causal Sentiment Impulse
         ).clip(0, 1)
 
         # Adaptive Reliability adjustment
