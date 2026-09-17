@@ -8,6 +8,7 @@ from app.features.volume import add_volume_features
 from app.features.sector_features import add_sector_features
 from app.features.event_features import add_event_features
 from app.features.relative import add_relative_features
+from app.features.interactions import add_elite_interactions
 from app.labels.target_builder import add_targets, add_cross_sectional_targets
 from app.config import STOCK_UNIVERSE
 from app.data.event_data import get_event_dataset
@@ -77,6 +78,9 @@ def run_feature_pipeline(all_data: Dict[str, pd.DataFrame], include_events=True)
 
     logger.info("Building cross-sectional targets...")
     global_df = add_cross_sectional_targets(global_df)
+
+    logger.info("Generating high-order elite interactions...")
+    global_df = add_elite_interactions(global_df)
 
     # 3. Final Split
     final_data = {}

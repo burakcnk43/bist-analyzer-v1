@@ -22,6 +22,7 @@ from app.research.regimes import MarketRegimeDetector
 
 from app.ml.intraday_filter import IntradayGater
 from app.ml.pdf_reports import BcbistPdfEngine
+from app.ml.meta_gater_v6 import MetaGaterV6
 
 from app.ml.memory import MemoryEngine
 
@@ -63,14 +64,15 @@ class ProductionManager:
         self.regime_detector = MarketRegimeDetector()
         self.intraday_gater = IntradayGater()
         self.pdf_engine = BcbistPdfEngine(DATA_REPORTS_DIR / "daily")
+        self.elite_gater = MetaGaterV6.load(prod_models_dir / "meta_gater_v6.joblib")
 
     def get_daily_picks(self,
                         day_data: pd.DataFrame,
                         market_data: pd.DataFrame,
                         intraday_data: Optional[Dict[str, pd.DataFrame]] = None) -> Dict:
         """
-        Main entry point for production predictions.
-        Includes Intraday Confirmation Step.
+        Elite Sniper Decision Engine (Phase 28 Overdrive).
+        100% On-Device Active Intelligence.
         """
         current_date = day_data.index.max()
         regime = self.regime_detector.detect_regime(market_data)
@@ -80,58 +82,53 @@ class ProductionManager:
         mkt_quality = self.quality_predictor.calculate_quality_score(market_data.iloc[-1], regime)
         drift_score = self.drift_guard.get_global_drift_score(day_data)
 
-        # 2. Expert Scoring & Meta-Adjustments
+        # 2. Expert Scoring & Specialist Predictions
         scores_df = self.scorer.calculate_production_scores(day_data, {'regime': regime})
         day_scored = day_data.join(scores_df).fillna(0)
 
-        # Specialist Multipliers
-        p_trust = self.trust_model.predict_trust_score(day_scored)
-        p_darvas = self.darvas_scorer.predict_success_prob(day_scored)
-        p_event = self.event_expert.predict_event_impulse(day_scored)
+        specialist_probs = {
+            "general": day_scored['production_alpha'].values,
+            "trust": self.trust_model.predict_trust_score(day_scored),
+            "box": self.darvas_scorer.predict_success_prob(day_scored),
+            "event": self.event_expert.predict_event_impulse(day_scored)
+        }
 
-        # Weighted Ensemble for Production Alpha (Phase 26 Ultra-Short Pivot)
-        # Prioritizes 1-2 day momentum and reliability
-        day_scored['production_alpha'] = (
-            0.40 * day_scored['production_alpha'] + # 1D/3D Base Blend
-            0.30 * p_trust +                        # AlphaTrust Precision
-            0.15 * p_darvas +                       # Darvas Box Breakout
-            0.15 * p_event                          # Causal Sentiment Impulse
-        ).clip(0, 1)
+        # 3. Meta-Gater V6: The Elite Brain
+        logger.info("Evaluating 'Perfect Storm' setups via MetaGaterV6...")
+        elite_X = self.elite_gater.prepare_elite_features(day_scored, specialist_probs, regime, mkt_quality)
+        day_scored['elite_confidence'] = self.elite_gater.predict_elite_confidence(elite_X)
 
-        # Adaptive Reliability adjustment
-        rel_feats = self.meta_learner.get_contextual_reliability(current_date, regime)
-        trust_coeff = rel_feats.get('rel_general_20d', 0.5) / 0.5
-        day_scored['production_alpha'] = (day_scored['production_alpha'] * trust_coeff).clip(0, 1)
+        # Override production alpha with elite confidence for selection
+        day_scored['production_alpha'] = day_scored['elite_confidence']
 
-        # 3. Intraday Confirmation Veto (Phase 23)
-        if intraday_data:
-            logger.info("Applying Intraday Confirmation Veto...")
+        # 4. Hyper-Selective Gating (Accuracy > 80% Objective)
+        # We only proceed if confidence is extreme
+        elite_threshold = self.config['selection'].get('elite_threshold', 0.85)
+
+        # Phase 28: Aggressive Abstention
+        day_scored = day_scored[day_scored['production_alpha'] >= elite_threshold]
+
+        # 5. Intraday Confirmation Veto (Precision Sniper 1D)
+        if not day_scored.empty and intraday_data:
+            logger.info("Applying Sniper Intraday Veto...")
             day_scored = self.intraday_gater.filter_candidates(day_scored, intraday_data)
 
-        # Phase 27: Accuracy Maximization (The Sniper Filter)
-        # 1. Volatility Spike Check: Avoid stocks that moved too much too fast (Mean Reversion Risk)
-        if 'rolling_std_5' in day_scored.columns and 'rolling_std_20' in day_scored.columns:
-            day_scored = day_scored[day_scored['rolling_std_5'] < 1.5 * day_scored['rolling_std_20']]
-
-        # 2. Sideways Precision Guard (Ultra-Precision)
-        if regime == 'SIDEWAYS_LOW_VOL':
-            logger.info("SIDEWAYS_LOW_VOL detected. Applying Ultra-Precision Guard...")
-            day_scored = day_scored[day_scored['production_alpha'] > 0.82] # Even higher
-            if 'dist_sma_20' in day_scored.columns:
-                day_scored = day_scored[day_scored['dist_sma_20'] > 0.015]
-            self.k_selector.min_utility_threshold = 0.30 # Extreme selective
-        else:
-            self.k_selector.min_utility_threshold = self.config['selection'].get('min_utility_threshold', 0.15)
-
-        # 4. Utility-Based K Selection
-        group_X = self.group_predictor.prepare_group_features(market_data.iloc[-1], day_scored)
-        hit_dist = self.group_predictor.predict_hit_distribution(group_X)
-        k = self.k_selector.determine_optimal_k(hit_dist, mkt_quality)
-
-        if k == 0 or day_scored.empty:
+        # 6. Utility-Based K Selection
+        if day_scored.empty:
             return self._format_abstain_response(current_date, regime, mkt_quality, drift_score)
 
-        # 5. V5 Portfolio Optimization
+        group_X = self.group_predictor.prepare_group_features(market_data.iloc[-1], day_scored)
+        hit_dist = self.group_predictor.predict_hit_distribution(group_X)
+
+        # Force lower K for elite sniper unless quality is perfect
+        k_limit = 5 if mkt_quality > 90 else (3 if mkt_quality > 50 else 1)
+        k = self.k_selector.determine_optimal_k(hit_dist, mkt_quality)
+        k = min(k, k_limit)
+
+        if k == 0:
+            return self._format_abstain_response(current_date, regime, mkt_quality, drift_score)
+
+        # 7. V5 Portfolio Optimization
         picks = self.optimizer.select_optimal_set(
             day_scored, k=k,
             regime=regime,
